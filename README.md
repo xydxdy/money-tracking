@@ -36,3 +36,7 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Project docs
 
 See `docs/` for the product spec, plan, and a sample data fixture used by the import task.
+
+## Notes
+
+This scaffold's shadcn/ui components are built on [Base UI](https://base-ui.com) (`@base-ui/react`), not Radix UI — shadcn's current default style — so expect Base UI's data attributes (e.g. `data-open`/`data-closed`) rather than Radix's (`data-state`) when styling or inspecting these components.
