@@ -99,7 +99,7 @@ money-tracking/
 ## Task 1: Project Scaffold
 
 **Files:**
-- Create: `package.json`, `tsconfig.json`, `next.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `.eslintrc.json`, `.gitignore`, `.env.example`, `docker-compose.yml`, `vitest.config.ts`, `app/layout.tsx`, `app/globals.css`, `app/page.tsx`, `README.md`
+- Create: `package.json`, `tsconfig.json`, `next.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `.eslintrc.json`, `.gitignore`, `.env.example`, `docker-compose.yml`, `vitest.config.ts`, `tests/setup-env.ts`, `app/layout.tsx`, `app/globals.css`, `app/page.tsx`, `README.md`
 - Test: `tests/smoke.test.ts`
 
 **Interfaces:**
@@ -175,13 +175,26 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'node',
-    setupFiles: ['dotenv/config'],
+    setupFiles: ['dotenv/config', './tests/setup-env.ts'],
   },
   resolve: {
     alias: { '@': path.resolve(__dirname, '.') },
   },
 });
 ```
+
+- [ ] **Step 6b: Write `tests/setup-env.ts`**
+
+`db/client.ts` (Task 2) always reads `process.env.DATABASE_URL` — there is no separate test client. This setup file redirects `DATABASE_URL` to the test database for every test run, so `npm test` never touches the dev database, only the `postgres_test` docker-compose service:
+
+```ts
+// tests/setup-env.ts
+if (process.env.DATABASE_URL_TEST) {
+  process.env.DATABASE_URL = process.env.DATABASE_URL_TEST;
+}
+```
+
+This file must load after `dotenv/config` (which populates `DATABASE_URL_TEST` from `.env`) and before any test file imports `@/db/client` — the `setupFiles` order above guarantees that.
 
 - [ ] **Step 7: Add npm scripts to `package.json`**
 
@@ -747,7 +760,7 @@ describe('createUser', () => {
 - [ ] **Step 7: Run test**
 
 Run: `npm test -- tests/scripts/create-user.test.ts`
-Expected: PASS (uses `DATABASE_URL_TEST` via `dotenv/config` — point `DATABASE_URL` in `.env` to the test DB while testing, or add a `DATABASE_URL` override in the test env; document this in Task 18's README).
+Expected: PASS. `tests/setup-env.ts` (Task 1) already redirects `DATABASE_URL` to `DATABASE_URL_TEST` for the whole test run, so this hits the `postgres_test` docker service, not the dev database.
 
 - [ ] **Step 8: Commit**
 
@@ -1675,9 +1688,13 @@ const baseFields = {
 };
 
 const transactionInput = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('expense'), fromAccountId: z.string(), ...baseFields }),
-  z.object({ type: z.literal('income'), toAccountId: z.string(), ...baseFields }),
-  z.object({ type: z.literal('transfer'), fromAccountId: z.string(), toAccountId: z.string(), ...baseFields }),
+  // `...baseFields` MUST come first in each branch: baseFields.fromAccountId/toAccountId are
+  // `.optional()`, and object-spread order means a later key wins. Spreading baseFields first
+  // and overriding the required id(s) after is what actually makes them required per type —
+  // the reverse order silently makes every branch's ids optional again.
+  z.object({ ...baseFields, type: z.literal('expense'), fromAccountId: z.string() }),
+  z.object({ ...baseFields, type: z.literal('income'), toAccountId: z.string() }),
+  z.object({ ...baseFields, type: z.literal('transfer'), fromAccountId: z.string(), toAccountId: z.string() }),
 ]);
 
 async function assertOwnedReferences(userId: string, data: { fromAccountId?: string; toAccountId?: string; categoryId?: string }) {
@@ -2313,7 +2330,10 @@ describe('getDashboardData', () => {
     const data = await getDashboardData(user.id, '2026-09');
     expect(data.monthlyIncomeCents).toBe(100000);
     expect(data.monthlyExpenseCents).toBe(10000);
-    expect(data.balancesByCurrency['USD']).toBe(70000); // 1000 - 100 (transfer nets to 0 across the two accounts)
+    // checking: 0 + 1000 income - 100 expense - 200 transfer-out = 700.00; savings: 0 + 200 transfer-in = 200.00
+    // summed by currency: 700 + 200 = 900.00 (the transfer nets to zero across the pair, but both legs still count
+    // into the per-account balances that get summed — it does not cancel out of the currency total pre-sum)
+    expect(data.balancesByCurrency['USD']).toBe(90000);
     expect(data.reimbursableCents).toBe(10000);
     expect(data.spendingByCategory[0]).toMatchObject({ categoryId: groceries.id, cents: 10000 });
   });
@@ -3016,6 +3036,9 @@ import { previewImport } from '@/lib/import/importer';
 const json = JSON.parse(fs.readFileSync('docs/finance-backup-2026-09-28.json', 'utf-8'));
 const preview = previewImport(json);
 console.log(JSON.stringify(preview, null, 2));
+// `lib/import/importer.ts` imports `db/client.ts`, which opens a pg Pool at module load even
+// though this script never queries it — exit explicitly or the open Pool keeps the process alive.
+process.exit(0);
 ```
 
 Run: `npx tsx scripts/verify-real-backup.ts`
