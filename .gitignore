@@ -6,3 +6,23 @@ node_modules/
 .DS_Store
 .superpowers/
 .worktrees/
+
+# next.js
+/out/
+next-env.d.ts
+
+# testing
+/coverage
+
+# production
+/build
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+# misc
+*.pem
+npm-debug.log*
