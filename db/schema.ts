@@ -1,5 +1,4 @@
 import { pgTable, text, timestamp, boolean, numeric, date, jsonb, index, uniqueIndex, pgEnum } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
 
 export const accountTypeEnum = pgEnum('account_type', ['bank', 'credit', 'cash', 'wallet', 'travel', 'grant']);
 export const categoryTypeEnum = pgEnum('category_type', ['expense', 'income', 'transfer']);
