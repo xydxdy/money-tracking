@@ -3436,7 +3436,7 @@ export function ConfirmButton({ label, description, onConfirm }: { label: string
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button variant="destructive" size="sm">{label}</Button></DialogTrigger>
+      <DialogTrigger render={<Button variant="destructive" size="sm" />}>{label}</DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Are you sure?</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground">{description}</p>
