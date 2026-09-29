@@ -29,7 +29,21 @@ const transactionInput = z.discriminatedUnion('type', [
   z.object({ ...baseFields, type: z.literal('expense'), fromAccountId: z.string() }),
   z.object({ ...baseFields, type: z.literal('income'), toAccountId: z.string() }),
   z.object({ ...baseFields, type: z.literal('transfer'), fromAccountId: z.string(), toAccountId: z.string() }),
-]);
+]).superRefine((val, ctx) => {
+  // A same-account transfer (fromAccountId === toAccountId) would let calculateAccountBalance
+  // (lib/balances.ts) apply the "from" debit and the "to" credit to the *same* account in the
+  // same pass, silently absorbing amount/toAmount mismatches as a phantom gain or loss on that
+  // account instead of being rejected outright. Enforced here via `superRefine` (rather than a
+  // per-branch `.refine()`) because `z.discriminatedUnion` requires each option to be a plain
+  // `ZodObject`; wrapping a branch in `.refine()` would break the union's discriminator lookup.
+  if (val.type === 'transfer' && val.fromAccountId === val.toAccountId) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'A transfer must move funds between two different accounts',
+      path: ['toAccountId'],
+    });
+  }
+});
 
 // Partial-update schema for `updateTransaction`. Deliberately NOT `transactionInput.partial()`
 // (not available on a discriminated union, and a partial update legitimately omits `type`) and
@@ -60,6 +74,16 @@ async function assertOwnedReferences(userId: string, data: { fromAccountId?: str
   if (data.categoryId && !(await getUserCategory(data.categoryId, userId))) throw new Error('FORBIDDEN');
 }
 
+// DB rows store "no value" as SQL NULL, but the Zod schema's optional fields expect the key to be
+// absent/`undefined`, not `null` — `z.string().optional()` rejects `null` outright. Converting
+// before merging an existing row into a re-validation pass avoids spurious "invalid_type" errors
+// on fields the caller never touched.
+function nullsToUndefined<T extends Record<string, unknown>>(obj: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) out[key] = value === null ? undefined : value;
+  return out as T;
+}
+
 // `z.input<...>`, not `z.infer`/`z.output<...>`: `reimbursable` carries `.default(false)`, so
 // the *input* type keeps it optional while the *output* (infer) type makes it required. Typing
 // the parameter with the output type would reject exactly the calls callers are meant to make
@@ -78,7 +102,16 @@ export async function updateTransaction(id: string, input: z.input<typeof transa
   if (!existing) throw new Error('NOT_FOUND');
   const data = transactionUpdateInput.parse(input);
   await assertOwnedReferences(user.id, data);
-  const [updated] = await db.update(transactions).set({ ...data, updatedAt: new Date() })
+  // Re-validate the FULL resulting record (existing row + this update, merged) against the same
+  // per-type discriminated union `createTransaction` uses — not just the partial update fields.
+  // Without this, changing `type` (e.g. expense -> income) without also supplying the new type's
+  // required id field would write a row that satisfies neither of calculateAccountBalance's
+  // matching branches (lib/balances.ts), silently dropping it from every account's balance total.
+  // `data` is spread after the sanitized existing row so any field the caller actually provided
+  // wins; fields the caller omitted keep the existing row's (sanitized) value.
+  const merged = { ...nullsToUndefined(existing), ...data };
+  const validated = transactionInput.parse(merged);
+  const [updated] = await db.update(transactions).set({ ...validated, updatedAt: new Date() })
     .where(and(eq(transactions.id, id), eq(transactions.userId, user.id))).returning();
   return updated;
 }
