@@ -20,11 +20,22 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     listTransactions(),
   ]);
   const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? 'Unknown';
-  // monthlyIncomeCents/monthlyExpenseCents/reimbursableCents are single currency-blind totals
-  // (per the locked-in getDashboardData interface/test), unlike balancesByCurrency which is a
-  // real per-currency breakdown. Label them with the user's dominant account currency rather
-  // than hardcoding 'USD', so a non-USD user doesn't see a mislabeled currency symbol.
-  const primaryCurrency = Object.keys(data.balancesByCurrency)[0] ?? 'USD';
+
+  // Every stat/chart below is rendered once per currency that actually has data, rather than
+  // ever adding cents from two different currencies together. `balancesByCurrency` already drove
+  // this pattern before this fix; income/expense/reimbursable/trend/spending now follow it too.
+  const statCurrencies = Array.from(new Set([
+    ...Object.keys(data.balancesByCurrency),
+    ...Object.keys(data.monthlyIncomeCents),
+    ...Object.keys(data.monthlyExpenseCents),
+    ...Object.keys(data.reimbursableCents),
+  ])).sort();
+
+  const trendCurrencies = Array.from(new Set(
+    data.trend.flatMap((t) => [...Object.keys(t.incomeCents), ...Object.keys(t.expenseCents)])
+  )).sort();
+  const spendingCurrencies = Array.from(new Set(data.spendingByCategory.map((s) => s.currency))).sort();
+  const chartCurrencies = Array.from(new Set([...trendCurrencies, ...spendingCurrencies])).sort();
 
   return (
     <div className="space-y-6">
@@ -36,39 +47,61 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {Object.entries(data.balancesByCurrency).map(([currency, cents]) => (
-          <div key={currency} className="rounded-lg border p-4">
+      {statCurrencies.length === 0 && (
+        <p className="text-sm text-muted-foreground">No accounts or activity yet.</p>
+      )}
+      {statCurrencies.map((currency) => (
+        <div key={currency} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg border p-4">
             <p className="text-sm text-muted-foreground">Total balance ({currency})</p>
-            <p className="text-2xl font-semibold">{formatMoney(cents, currency)}</p>
+            <p className="text-2xl font-semibold">{formatMoney(data.balancesByCurrency[currency] ?? 0, currency)}</p>
           </div>
-        ))}
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">Income this month</p>
-          <p className="text-2xl font-semibold text-emerald-600">{formatMoney(data.monthlyIncomeCents, primaryCurrency)}</p>
+          <div className="rounded-lg border p-4">
+            <p className="text-sm text-muted-foreground">Income this month ({currency})</p>
+            <p className="text-2xl font-semibold text-emerald-600">{formatMoney(data.monthlyIncomeCents[currency] ?? 0, currency)}</p>
+          </div>
+          <div className="rounded-lg border p-4">
+            <p className="text-sm text-muted-foreground">Expenses this month ({currency})</p>
+            <p className="text-2xl font-semibold text-destructive">{formatMoney(data.monthlyExpenseCents[currency] ?? 0, currency)}</p>
+          </div>
+          <div className="rounded-lg border p-4">
+            <p className="text-sm text-muted-foreground">Reimbursable ({currency})</p>
+            <p className="text-2xl font-semibold">{formatMoney(data.reimbursableCents[currency] ?? 0, currency)}</p>
+          </div>
         </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">Expenses this month</p>
-          <p className="text-2xl font-semibold text-destructive">{formatMoney(data.monthlyExpenseCents, primaryCurrency)}</p>
-        </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">Reimbursable</p>
-          <p className="text-2xl font-semibold">{formatMoney(data.reimbursableCents, primaryCurrency)}</p>
-        </div>
-      </div>
+      ))}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {chartCurrencies.length === 0 ? (
         <div className="rounded-lg border p-4">
-          <h2 className="mb-2 font-medium">Income vs Expense (6 months)</h2>
-          <TrendChart data={data.trend} />
+          <p className="text-sm text-muted-foreground">No income or expense activity in the last 6 months.</p>
         </div>
-        <div className="rounded-lg border p-4">
-          <h2 className="mb-2 font-medium">Spending by Category</h2>
-          {data.spendingByCategory.length > 0
-            ? <SpendingPie data={data.spendingByCategory.map((s) => ({ name: categoryName(s.categoryId), cents: s.cents }))} />
-            : <p className="text-sm text-muted-foreground">No expenses recorded this month.</p>}
-        </div>
-      </div>
+      ) : (
+        chartCurrencies.map((currency) => {
+          const trendSeries = data.trend.map((t) => ({
+            month: t.month,
+            incomeCents: t.incomeCents[currency] ?? 0,
+            expenseCents: t.expenseCents[currency] ?? 0,
+          }));
+          const spendingSeries = data.spendingByCategory
+            .filter((s) => s.currency === currency)
+            .map((s) => ({ name: categoryName(s.categoryId), cents: s.cents }));
+
+          return (
+            <div key={currency} className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-lg border p-4">
+                <h2 className="mb-2 font-medium">Income vs Expense ({currency}, 6 months)</h2>
+                <TrendChart data={trendSeries} />
+              </div>
+              <div className="rounded-lg border p-4">
+                <h2 className="mb-2 font-medium">Spending by Category ({currency})</h2>
+                {spendingSeries.length > 0
+                  ? <SpendingPie data={spendingSeries} />
+                  : <p className="text-sm text-muted-foreground">No expenses recorded this month.</p>}
+              </div>
+            </div>
+          );
+        })
+      )}
 
       <div className="rounded-lg border p-4">
         <h2 className="mb-3 font-medium">Budget summary</h2>
