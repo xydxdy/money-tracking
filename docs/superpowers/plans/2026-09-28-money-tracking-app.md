@@ -1618,7 +1618,7 @@ vi.mock('@/lib/session', () => ({ getCurrentUser: vi.fn() }));
 import { getCurrentUser } from '@/lib/session';
 import { createTransaction } from '@/app/actions/transactions';
 
-let userA: { id: string }, userB: { id: string };
+let userA: { id: string; email: string }, userB: { id: string; email: string };
 let accountA: { id: string }, accountB: { id: string };
 let categoryA: { id: string };
 
@@ -2571,7 +2571,7 @@ vi.mock('@/lib/session', () => ({ getCurrentUser: vi.fn() }));
 import { getCurrentUser } from '@/lib/session';
 import { listReimbursables, setReimbursementStatus } from '@/app/actions/reimbursements';
 
-let user: { id: string };
+let user: { id: string; email: string };
 let txnId: string;
 
 beforeAll(async () => {
@@ -3309,7 +3309,7 @@ import { updateAccount, listAccounts } from '@/app/actions/accounts';
 import { createTransaction, listTransactions } from '@/app/actions/transactions';
 import { getUserAccount, getUserTransaction } from '@/lib/authorization';
 
-let userA: { id: string }, userB: { id: string };
+let userA: { id: string; email: string }, userB: { id: string; email: string };
 let accountA: { id: string }, categoryA: { id: string };
 let transactionA: { id: string };
 
