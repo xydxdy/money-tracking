@@ -10,10 +10,10 @@ let savings: { id: string };
 beforeAll(async () => {
   [user] = await db.insert(users).values({ email: 'balance@example.com', passwordHash: 'x' }).returning();
   [checking] = await db.insert(accounts).values({
-    userId: user.id, name: 'Checking', type: 'bank', currency: 'USD', startingBalance: '100.00',
+    userId: user.id, name: 'Checking', currency: 'USD', startingBalance: '100.00',
   }).returning();
   [savings] = await db.insert(accounts).values({
-    userId: user.id, name: 'Savings', type: 'bank', currency: 'USD', startingBalance: '0',
+    userId: user.id, name: 'Savings', currency: 'USD', startingBalance: '0',
   }).returning();
 
   await db.insert(transactions).values([

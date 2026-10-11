@@ -26,3 +26,6 @@ next-env.d.ts
 # misc
 *.pem
 npm-debug.log*
+
+# Personal finance backups dropped in the project root (keep out of git)
+/finance-backup-*.json

@@ -1,6 +1,6 @@
 'use client';
 import { useSyncExternalStore } from 'react';
-import { Button } from '@/components/ui/button';
+import { MoonIcon, SunIcon } from 'lucide-react';
 
 // The initial `dark` class is applied before hydration by the inline script in app/layout.tsx.
 // The <html> class list is the single source of truth; this component just observes it.
@@ -25,8 +25,13 @@ export function ThemeToggle() {
   }
 
   return (
-    <Button variant="ghost" size="sm" className="w-full justify-start" onClick={toggle}>
+    <button
+      type="button"
+      onClick={toggle}
+      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground"
+    >
+      {dark ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />}
       {dark ? 'Light mode' : 'Dark mode'}
-    </Button>
+    </button>
   );
 }

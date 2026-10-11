@@ -39,4 +39,21 @@ describe('calculateBudgetProgress', () => {
     expect(progress.remainingCents).toBe(13000);
     expect(progress.percentUsed).toBeCloseTo(56.67, 1);
   });
+
+  it('returns budgets sorted by category name', async () => {
+    const [rent] = await db.insert(categories).values({ userId: user.id, name: 'Rent', type: 'expense' }).returning();
+    const [apps] = await db.insert(categories).values({ userId: user.id, name: 'apps', type: 'expense' }).returning();
+    await db.insert(budgets).values([
+      { userId: user.id, month: '2026-09', categoryId: rent.id, currency: 'USD', plannedAmount: '1.00' },
+      { userId: user.id, month: '2026-09', categoryId: apps.id, currency: 'USD', plannedAmount: '1.00' },
+    ]);
+    const names = (await calculateBudgetProgress(user.id, '2026-09')).map((p) => p.category.name);
+    expect(names).toEqual(['apps', 'Groceries', 'Rent']);
+  });
+
+  it("includes the budget's transactions (same category, month and currency), newest first", async () => {
+    const progress = await calculateBudgetProgress(user.id, '2026-09');
+    const groceriesBudget = progress.find((p) => p.category.id === groceries.id)!;
+    expect(groceriesBudget.transactions.map((t) => t.details)).toEqual(['Store B', 'Store A']);
+  });
 });

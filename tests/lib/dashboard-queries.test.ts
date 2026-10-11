@@ -9,9 +9,9 @@ let groceries: { id: string };
 
 beforeAll(async () => {
   [user] = await db.insert(users).values({ email: 'dash@example.com', passwordHash: 'x' }).returning();
-  [checking] = await db.insert(accounts).values({ userId: user.id, name: 'Checking', type: 'bank', currency: 'USD', startingBalance: '0' }).returning();
-  [savings] = await db.insert(accounts).values({ userId: user.id, name: 'Savings', type: 'bank', currency: 'USD', startingBalance: '0' }).returning();
-  [thbWallet] = await db.insert(accounts).values({ userId: user.id, name: 'Thai Wallet', type: 'wallet', currency: 'THB', startingBalance: '0' }).returning();
+  [checking] = await db.insert(accounts).values({ userId: user.id, name: 'Checking', currency: 'USD', startingBalance: '0' }).returning();
+  [savings] = await db.insert(accounts).values({ userId: user.id, name: 'Savings', currency: 'USD', startingBalance: '0' }).returning();
+  [thbWallet] = await db.insert(accounts).values({ userId: user.id, name: 'Thai Wallet', currency: 'THB', startingBalance: '0' }).returning();
   [groceries] = await db.insert(categories).values({ userId: user.id, name: 'Groceries', type: 'expense' }).returning();
 
   await db.insert(transactions).values([
@@ -64,5 +64,17 @@ describe('getDashboardData', () => {
     expect(usdGroceries).toMatchObject({ cents: 10000 });
     expect(thbGroceries).toMatchObject({ cents: 30000 });
     expect(data.spendingByCategory).toHaveLength(2);
+  });
+
+  it('counts to-claim and submitting reimbursements as outstanding, but not claimed ones', async () => {
+    const [u] = await db.insert(users).values({ email: 'dash-reimb@example.com', passwordHash: 'x' }).returning();
+    const [acc] = await db.insert(accounts).values({ userId: u.id, name: 'A', currency: 'USD', startingBalance: '0' }).returning();
+    await db.insert(transactions).values([
+      { userId: u.id, details: 'a', type: 'expense', payDate: '2026-09-02', fromAccountId: acc.id, amount: '1.00', currency: 'USD', reimbursable: true, reimbursementStatus: 'to_claim' },
+      { userId: u.id, details: 'b', type: 'expense', payDate: '2026-09-02', fromAccountId: acc.id, amount: '10.00', currency: 'USD', reimbursable: true, reimbursementStatus: 'submitting' },
+      { userId: u.id, details: 'c', type: 'expense', payDate: '2026-09-02', fromAccountId: acc.id, amount: '100.00', currency: 'USD', reimbursable: true, reimbursementStatus: 'claimed' },
+    ]);
+    const data = await getDashboardData(u.id, '2026-09');
+    expect(data.reimbursableCents['USD']).toBe(1100);
   });
 });

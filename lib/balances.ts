@@ -18,6 +18,11 @@ export async function calculateAccountBalance(accountId: string, userId: string)
     } else if (t.type === 'transfer') {
       if (t.fromAccountId === accountId) cents = addCents(cents, -toCents(t.amount));
       if (t.toAccountId === accountId) cents = addCents(cents, toCents(t.toAmount ?? t.amount));
+    } else if (t.type === 'loan') {
+      // Lending or paying back takes money out; borrowing or being paid back brings it in.
+      const out = t.loanKind === 'lend' || t.loanKind === 'repayment_out';
+      if (out && t.fromAccountId === accountId) cents = addCents(cents, -toCents(t.amount));
+      if (!out && t.toAccountId === accountId) cents = addCents(cents, toCents(t.amount));
     }
   }
 

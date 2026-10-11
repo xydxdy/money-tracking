@@ -1,13 +1,21 @@
 import { listAccounts } from '@/app/actions/accounts';
 import { listCategories } from '@/app/actions/categories';
+import { listLoanSummary } from '@/app/actions/loans';
 import { TransactionForm } from '@/components/transaction-form';
+import { PageHeader } from '@/components/page-header';
 
-export default async function NewTransactionPage() {
-  const [accounts, categories] = await Promise.all([listAccounts(), listCategories()]);
+const TYPES = ['expense', 'income', 'transfer', 'loan'] as const;
+
+export default async function NewTransactionPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
+  // `?type=loan` (from the Loans page's "Add loan") opens the form on that type; anything else is ignored.
+  const { type } = await searchParams;
+  const initialType = TYPES.find((t) => t === type) ?? 'expense';
+  const [accounts, categories, loans] = await Promise.all([listAccounts(), listCategories(), listLoanSummary()]);
+  const people = [...new Set(loans.map((l) => l.counterparty))];
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Add Transaction</h1>
-      <TransactionForm accounts={accounts} categories={categories} />
+    <div className="max-w-2xl space-y-6">
+      <PageHeader title={initialType === 'loan' ? 'Add loan' : 'Add transaction'} />
+      <TransactionForm accounts={accounts} categories={categories} people={people} initialType={initialType} />
     </div>
   );
 }

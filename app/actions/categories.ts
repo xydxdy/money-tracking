@@ -1,8 +1,8 @@
 'use server';
 import { z } from 'zod';
 import { db } from '@/db/client';
-import { categories } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { categories, transactions } from '@/db/schema';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/session';
 import { getUserCategory } from '@/lib/authorization';
 
@@ -10,8 +10,9 @@ const categoryInput = z.object({
   name: z.string().min(1),
   type: z.enum(['expense', 'income', 'transfer']),
   icon: z.string().optional(),
-  noBudget: z.boolean().default(false),
 });
+
+const categoryUpdateInput = categoryInput.partial();
 
 export async function createCategory(input: z.infer<typeof categoryInput>) {
   const user = await getCurrentUser();
@@ -24,7 +25,13 @@ export async function updateCategory(id: string, input: Partial<z.infer<typeof c
   const user = await getCurrentUser();
   const existing = await getUserCategory(id, user.id);
   if (!existing) throw new Error('NOT_FOUND');
-  const data = categoryInput.partial().parse(input);
+  const data = categoryUpdateInput.parse(input);
+  if (data.type && data.type !== existing.type) {
+    // Transactions must match their category's type; changing it would orphan them logically.
+    const [used] = await db.select({ id: transactions.id }).from(transactions)
+      .where(and(eq(transactions.categoryId, id), eq(transactions.userId, user.id))).limit(1);
+    if (used) throw new Error('CATEGORY_IN_USE');
+  }
   const [updated] = await db.update(categories).set({ ...data, updatedAt: new Date() })
     .where(and(eq(categories.id, id), eq(categories.userId, user.id))).returning();
   return updated;
@@ -50,5 +57,7 @@ export async function deleteCategory(id: string) {
 
 export async function listCategories() {
   const user = await getCurrentUser();
-  return db.select().from(categories).where(eq(categories.userId, user.id));
+  // Alphabetical by name, ignoring case (pages that group by type keep this order inside each group).
+  return db.select().from(categories).where(eq(categories.userId, user.id))
+    .orderBy(asc(sql`lower(${categories.name})`), asc(categories.name));
 }

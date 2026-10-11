@@ -1,3 +1,5 @@
+import { currencySymbol } from '@/lib/currencies';
+
 export function toCents(numeric: string): number {
   const negative = numeric.trim().startsWith('-');
   const [wholeRaw, fracRaw = ''] = numeric.trim().replace('-', '').split('.');
@@ -19,6 +21,29 @@ export function addCents(...values: number[]): number {
   return values.reduce((sum, v) => sum + v, 0);
 }
 
+/**
+ * `฿1,000.00`, `-$5.00`, `¥1,000`. Uses the symbol from lib/currencies.ts (falling back to the
+ * code), and the currency's usual number of decimals (none for JPY/KRW).
+ */
 export function formatMoney(cents: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100);
+  let parts: Intl.NumberFormatPart[];
+  try {
+    parts = new Intl.NumberFormat('en-US', { style: 'currency', currency }).formatToParts(cents / 100);
+  } catch {
+    // Not a currency code Intl knows: show "XYZ 5.00".
+    return `${currency} ${fromCents(cents)}`;
+  }
+  const symbol = currencySymbol(currency);
+  let out = '';
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (part.type === 'currency') {
+      out += symbol;
+      // Intl puts a space after a bare code ("THB 1.00"); a symbol sits directly against the number.
+      if (symbol !== currency && parts[i + 1]?.type === 'literal' && /^\s+$/.test(parts[i + 1].value)) i++;
+    } else {
+      out += part.value;
+    }
+  }
+  return out;
 }

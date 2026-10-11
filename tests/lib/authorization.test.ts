@@ -10,7 +10,7 @@ beforeAll(async () => {
   [userA] = await db.insert(users).values({ email: 'auth-a@example.com', passwordHash: 'x' }).returning();
   [userB] = await db.insert(users).values({ email: 'auth-b@example.com', passwordHash: 'x' }).returning();
   [accountA] = await db.insert(accounts).values({
-    userId: userA.id, name: 'A Bank', type: 'bank', currency: 'USD', startingBalance: '0',
+    userId: userA.id, name: 'A Bank', currency: 'USD', startingBalance: '0',
   }).returning();
 });
 

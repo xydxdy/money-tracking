@@ -5,7 +5,7 @@ import { users, categories, transactions } from '@/db/schema';
 
 vi.mock('@/lib/session', () => ({ getCurrentUser: vi.fn() }));
 import { getCurrentUser } from '@/lib/session';
-import { createCategory, deleteCategory, listCategories } from '@/app/actions/categories';
+import { createCategory, deleteCategory, listCategories, updateCategory } from '@/app/actions/categories';
 
 let user: { id: string; email: string };
 
@@ -22,13 +22,13 @@ afterAll(async () => {
 
 describe('category actions', () => {
   it('creates and lists a category scoped to the user', async () => {
-    await createCategory({ name: 'Groceries', type: 'expense', icon: '🛒', noBudget: false });
+    await createCategory({ name: 'Groceries', type: 'expense', icon: '🛒' });
     const list = await listCategories();
     expect(list.some((c) => c.name === 'Groceries')).toBe(true);
   });
 
   it('deleting a category nulls out categoryId on historical transactions instead of failing', async () => {
-    const category = await createCategory({ name: 'Rent', type: 'expense', icon: '🏠', noBudget: false });
+    const category = await createCategory({ name: 'Rent', type: 'expense', icon: '🏠' });
     await db.insert(transactions).values({
       userId: user.id, details: 'Rent payment', type: 'expense', payDate: '2026-09-01',
       categoryId: category.id, amount: '10.00', currency: 'USD',
@@ -38,5 +38,35 @@ describe('category actions', () => {
 
     const [txn] = await db.select().from(transactions).where(eq(transactions.details, 'Rent payment'));
     expect(txn.categoryId).toBeNull();
+  });
+
+  it('edits name and icon', async () => {
+    const cat = await createCategory({ name: 'Rent', type: 'expense', icon: '🏠' });
+    const updated = await updateCategory(cat.id, { name: 'Housing', icon: '🏡' });
+    expect(updated).toMatchObject({ name: 'Housing', icon: '🏡' });
+  });
+
+  it('allows changing the type of an unused category', async () => {
+    const cat = await createCategory({ name: 'Misc', type: 'expense' });
+    const updated = await updateCategory(cat.id, { type: 'income' });
+    expect(updated.type).toBe('income');
+  });
+
+  it('refuses to change the type of a category that transactions use', async () => {
+    const cat = await createCategory({ name: 'Used', type: 'expense' });
+    await db.insert(transactions).values({
+      userId: user.id, details: 'x', type: 'expense', payDate: '2026-09-01', categoryId: cat.id, amount: '1.00', currency: 'USD',
+    });
+    await expect(updateCategory(cat.id, { type: 'income' })).rejects.toThrow('CATEGORY_IN_USE');
+  });
+
+  it('lists categories alphabetically by name, ignoring case', async () => {
+    await db.delete(transactions);
+    await db.delete(categories);
+    await createCategory({ name: 'Zoo', type: 'expense' });
+    await createCategory({ name: 'Bank Transfer', type: 'transfer' });
+    await createCategory({ name: 'apple', type: 'income' });
+    await createCategory({ name: 'Uni Fee', type: 'expense' });
+    expect((await listCategories()).map((c) => c.name)).toEqual(['apple', 'Bank Transfer', 'Uni Fee', 'Zoo']);
   });
 });

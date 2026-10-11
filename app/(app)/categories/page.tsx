@@ -1,35 +1,6 @@
-import { listCategories, deleteCategory } from '@/app/actions/categories';
-import { ConfirmButton } from '@/components/confirm-button';
-import { CategoryForm } from '@/components/category-form';
-import { Badge } from '@/components/ui/badge';
+import { redirect } from 'next/navigation';
 
-export default async function CategoriesPage() {
-  const categories = await listCategories();
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Categories</h1>
-      {categories.length === 0 ? (
-        <p className="text-muted-foreground">No categories yet. Create your first one below.</p>
-      ) : (
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {categories.map((c) => (
-            <div key={c.id} className="flex items-center justify-between rounded-lg border p-3">
-              <span>{c.icon} {c.name}</span>
-              <div className="flex items-center gap-1">
-                <Badge variant="outline">{c.type}</Badge>
-                {c.noBudget && <Badge variant="secondary">No budget</Badge>}
-                {c.archived && <Badge variant="secondary">Archived</Badge>}
-                <ConfirmButton
-                  label="Delete"
-                  description={`Delete "${c.name}"? Historical transactions keep their data but lose this category, and its budgets are removed.`}
-                  onConfirm={async () => { 'use server'; await deleteCategory(c.id); }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <CategoryForm />
-    </div>
-  );
+// Categories moved to Settings; keep old links and bookmarks working.
+export default function CategoriesRedirect() {
+  redirect('/settings/categories');
 }

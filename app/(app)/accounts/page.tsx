@@ -1,38 +1,34 @@
 import { listAccounts } from '@/app/actions/accounts';
+import { listAccountTypes } from '@/app/actions/account-types';
 import { calculateAccountBalance } from '@/lib/balances';
 import { getCurrentUser } from '@/lib/session';
 import { formatMoney } from '@/lib/money';
-import Link from 'next/link';
-import { AccountForm } from '@/components/account-form';
-import { Badge } from '@/components/ui/badge';
+import { CreateAccountDialog } from '@/components/create-dialogs';
+import { PageHeader } from '@/components/page-header';
+import { SortableAccountGrid } from '@/components/sortable-account-grid';
 
 export default async function AccountsPage() {
   const user = await getCurrentUser();
-  const accounts = await listAccounts();
+  const [accounts, types] = await Promise.all([listAccounts(), listAccountTypes()]);
   const withBalances = await Promise.all(
     accounts.map(async (a) => ({ ...a, balance: await calculateAccountBalance(a.id, user.id) }))
   );
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Accounts</h1>
+      <PageHeader title="Accounts" description="Sorted by currency and name. Drag the handle on a card to reorder." actions={<CreateAccountDialog types={types} />} />
       {withBalances.length === 0 ? (
-        <p className="text-muted-foreground">No accounts yet. Create your first one below.</p>
+        <p className="rounded-xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">No accounts yet. Use “New account” to create your first one.</p>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {withBalances.map((a) => (
-            <Link key={a.id} href={`/accounts/${a.id}`} className="rounded-lg border p-4 hover:bg-accent/40">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">{a.name}</span>
-                {a.archived && <Badge variant="secondary">Archived</Badge>}
-              </div>
-              <p className="text-sm text-muted-foreground">{a.type} · {a.currency}</p>
-              <p className="mt-2 text-lg font-semibold">{formatMoney(a.balance.cents, a.currency)}</p>
-            </Link>
-          ))}
-        </div>
+        <>
+          <SortableAccountGrid
+            accounts={withBalances.map((a) => ({
+              id: a.id, name: a.name, type: types.find((t) => t.id === a.accountTypeId)?.name ?? 'No type', currency: a.currency, archived: a.archived,
+              balanceLabel: formatMoney(a.balance.cents, a.currency), color: a.color, icon: a.icon, negative: a.balance.cents < 0,
+            }))}
+          />
+        </>
       )}
-      <AccountForm />
     </div>
   );
 }

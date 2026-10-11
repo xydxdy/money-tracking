@@ -1,12 +1,17 @@
-import { pgTable, text, timestamp, boolean, numeric, date, jsonb, index, uniqueIndex, pgEnum } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { uuidv7 } from '../lib/uuid';
+import { pgTable, text, timestamp, boolean, numeric, date, jsonb, index, uniqueIndex, pgEnum, integer } from 'drizzle-orm/pg-core';
 
-export const accountTypeEnum = pgEnum('account_type', ['bank', 'credit', 'cash', 'wallet', 'travel', 'grant']);
 export const categoryTypeEnum = pgEnum('category_type', ['expense', 'income', 'transfer']);
-export const transactionTypeEnum = pgEnum('transaction_type', ['expense', 'income', 'transfer']);
+export const transactionTypeEnum = pgEnum('transaction_type', ['expense', 'income', 'transfer', 'loan']);
+// For type = 'loan': lend / repayment_out move money out of fromAccountId; borrow / repayment_in
+// move money into toAccountId.
+export const loanKindEnum = pgEnum('loan_kind', ['lend', 'borrow', 'repayment_in', 'repayment_out']);
 export const transactionStatusEnum = pgEnum('transaction_status', ['completed', 'pending', 'cancelled']);
-export const reimbursementStatusEnum = pgEnum('reimbursement_status', ['to_claim', 'claimed', 'reimbursed']);
+export const reimbursementStatusEnum = pgEnum('reimbursement_status', ['to_claim', 'submitting', 'claimed']);
 
-const genId = () => crypto.randomUUID();
+// Time-ordered UUIDv7 ids: newer rows sort after older ones (see lib/uuid.ts).
+const genId = () => uuidv7();
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -21,15 +26,37 @@ export const users = pgTable('users', {
   ...timestamps,
 });
 
+// Each user's own list of account types (Bank, Credit card, …). Icon/colour are the defaults
+// given to new accounts of that type.
+export const accountTypes = pgTable('account_types', {
+  id: text('id').primaryKey().$defaultFn(genId),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  icon: text('icon'),
+  color: text('color'),
+  ...timestamps,
+}, (t) => ({
+  userIdx: index('account_types_user_id_idx').on(t.userId),
+  uniqueName: uniqueIndex('account_types_user_name_idx').on(t.userId, sql`lower(${t.name})`),
+}));
+
 export const accounts = pgTable('accounts', {
   id: text('id').primaryKey().$defaultFn(genId),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  type: accountTypeEnum('type').notNull(),
+  // Deleting a type that accounts still use is refused by the app (TYPE_IN_USE). The FK is the
+  // default NO ACTION rather than RESTRICT so deleting a user can cascade to both tables.
+  accountTypeId: text('account_type_id').references(() => accountTypes.id),
   currency: text('currency').notNull(),
   startingBalance: numeric('starting_balance', { precision: 14, scale: 2 }).notNull().default('0'),
   note: text('note'),
   archived: boolean('archived').notNull().default(false),
+  // Palette key (lib/account-appearance.ts) and emoji shown on the account.
+  color: text('color'),
+  icon: text('icon'),
+  // User-chosen display order (set by drag and drop). NULL = never reordered: those accounts
+  // sort after ordered ones, by currency then name.
+  position: integer('position'),
   ...timestamps,
 }, (t) => ({
   userIdx: index('accounts_user_id_idx').on(t.userId),
@@ -41,7 +68,6 @@ export const categories = pgTable('categories', {
   name: text('name').notNull(),
   type: categoryTypeEnum('type').notNull(),
   icon: text('icon'),
-  noBudget: boolean('no_budget').notNull().default(false),
   archived: boolean('archived').notNull().default(false),
   ...timestamps,
 }, (t) => ({
@@ -64,6 +90,14 @@ export const transactions = pgTable('transactions', {
   reimbursable: boolean('reimbursable').notNull().default(false),
   reimbursementStatus: reimbursementStatusEnum('reimbursement_status'),
   receipt: jsonb('receipt'),
+  // Optional http(s) link, e.g. to a receipt stored elsewhere.
+  link: text('link'),
+  // Loans only: what kind of loan movement this is, and the person on the other side.
+  loanKind: loanKindEnum('loan_kind'),
+  counterparty: text('counterparty'),
+  // Set when the loan was closed (settled or written off) on the Loans page. Closed loans stay in
+  // the history but no longer count towards the person's outstanding balance.
+  loanClosedAt: timestamp('loan_closed_at', { withTimezone: true }),
   note: text('note'),
   ...timestamps,
 }, (t) => ({
@@ -87,6 +121,7 @@ export const budgets = pgTable('budgets', {
 
 export type User = typeof users.$inferSelect;
 export type Account = typeof accounts.$inferSelect;
+export type AccountType = typeof accountTypes.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
 export type Budget = typeof budgets.$inferSelect;

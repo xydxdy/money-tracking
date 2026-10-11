@@ -1,0 +1,1 @@
+ALTER TABLE "transactions" ADD COLUMN "loan_closed_at" timestamp with time zone;

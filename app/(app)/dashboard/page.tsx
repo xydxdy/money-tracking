@@ -1,153 +1,150 @@
+import Link from 'next/link';
+import { ArrowDownLeftIcon, ArrowUpRightIcon, LandmarkIcon, ReceiptIcon } from 'lucide-react';
 import { getDashboardData } from '@/lib/dashboard-queries';
 import { getCurrentUser } from '@/lib/session';
 import { listCategories } from '@/app/actions/categories';
+import { listAccounts } from '@/app/actions/accounts';
 import { listTransactions } from '@/app/actions/transactions';
 import { formatMoney } from '@/lib/money';
-import { TrendChart, SpendingPie } from '@/components/dashboard-charts';
-import { Progress } from '@/components/ui/progress';
-import Link from 'next/link';
+import { formatMonth, shiftMonth } from '@/lib/dates';
+import { TrendChart, SpendingBars } from '@/components/dashboard-charts';
+import { BudgetRow } from '@/components/budget-row';
+import { BudgetSummaryCard } from '@/components/budget-summary';
+import { summarizeBudgets } from '@/lib/budget-summary';
+import { PageHeader } from '@/components/page-header';
+import { MonthNav } from '@/components/month-nav';
+import { StatCard } from '@/components/stat-card';
+import { TransactionRow } from '@/components/transaction-row';
+import { dashboardCurrencyOptions, pickDashboardCurrency } from '@/lib/dashboard-currencies';
+import { DashboardCurrencySwitcher } from '@/components/dashboard-currency-switcher';
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
 }
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
-  const { month = currentMonth() } = await searchParams;
+function Panel({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="rounded-xl border bg-card shadow-xs">
+      <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+        <h2 className="font-medium">{title}</h2>
+        {action}
+      </div>
+      <div className="p-4">{children}</div>
+    </section>
+  );
+}
+
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ month?: string; currency?: string }> }) {
+  const { month = currentMonth(), currency: requestedCurrency } = await searchParams;
   const user = await getCurrentUser();
-  const [data, categories, recent] = await Promise.all([
+  const [data, categories, accounts, allRecent] = await Promise.all([
     getDashboardData(user.id, month),
     listCategories(),
+    listAccounts(),
     listTransactions(),
   ]);
-  const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? 'Unknown';
 
-  // Every stat/chart below is rendered once per currency that actually has data, rather than
-  // ever adding cents from two different currencies together. `balancesByCurrency` already drove
-  // this pattern before this fix; income/expense/reimbursable/trend/spending now follow it too.
-  const statCurrencies = Array.from(new Set([
+  // The dashboard shows one currency at a time — cents from different currencies are never added
+  // together. It defaults to the user's first currency in account order; the switcher picks another.
+  const activityCurrencies = [...new Set([
     ...Object.keys(data.balancesByCurrency),
     ...Object.keys(data.monthlyIncomeCents),
     ...Object.keys(data.monthlyExpenseCents),
     ...Object.keys(data.reimbursableCents),
-  ])).sort();
+    ...data.trend.flatMap((t) => [...Object.keys(t.incomeCents), ...Object.keys(t.expenseCents)]),
+    ...data.spendingByCategory.map((s) => s.currency),
+  ])];
+  const options = dashboardCurrencyOptions(accounts, activityCurrencies);
+  const currency = pickDashboardCurrency(options, requestedCurrency);
+  const withCurrency = (m: string) => `/dashboard?month=${m}${currency ? `&currency=${currency}` : ''}`;
 
-  const trendCurrencies = Array.from(new Set(
-    data.trend.flatMap((t) => [...Object.keys(t.incomeCents), ...Object.keys(t.expenseCents)])
-  )).sort();
-  const spendingCurrencies = Array.from(new Set(data.spendingByCategory.map((s) => s.currency))).sort();
-  const chartCurrencies = Array.from(new Set([...trendCurrencies, ...spendingCurrencies])).sort();
+  const trendSeries = data.trend.map((t) => ({
+    month: t.month,
+    incomeCents: currency ? t.incomeCents[currency] ?? 0 : 0,
+    expenseCents: currency ? t.expenseCents[currency] ?? 0 : 0,
+  }));
+  const spendingSeries = data.spendingByCategory
+    .filter((s) => s.currency === currency)
+    .map((s) => {
+      const c = categories.find((x) => x.id === s.categoryId);
+      return { name: c?.name ?? 'Unknown', icon: c?.icon, cents: s.cents };
+    });
+  const budgets = data.budgetProgress.filter((p) => p.budget.currency === currency);
+  const recent = allRecent.filter((t) => t.currency === currency);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Dashboard — {month}</h1>
-        <div className="flex gap-2 text-sm">
-          <Link href={`/dashboard?month=${previousMonth(month)}`} className="underline">← Prev</Link>
-          <Link href={`/dashboard?month=${nextMonth(month)}`} className="underline">Next →</Link>
-        </div>
-      </div>
+    <>
+      <PageHeader
+        title="Dashboard"
+        description={`Overview for ${formatMonth(month)}${currency ? ` · ${currency}` : ''}`}
+        actions={
+          <>
+            {options.length > 1 && currency && <DashboardCurrencySwitcher options={options} value={currency} />}
+            <MonthNav
+              label={formatMonth(month)}
+              prevHref={withCurrency(shiftMonth(month, -1))}
+              nextHref={withCurrency(shiftMonth(month, 1))}
+              todayHref={month === currentMonth() ? undefined : withCurrency(currentMonth())}
+            />
+          </>
+        }
+      />
 
-      {statCurrencies.length === 0 && (
-        <p className="text-sm text-muted-foreground">No accounts or activity yet.</p>
-      )}
-      {statCurrencies.map((currency) => (
-        <div key={currency} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border p-4">
-            <p className="text-sm text-muted-foreground">Total balance ({currency})</p>
-            <p className="text-2xl font-semibold">{formatMoney(data.balancesByCurrency[currency] ?? 0, currency)}</p>
-          </div>
-          <div className="rounded-lg border p-4">
-            <p className="text-sm text-muted-foreground">Income this month ({currency})</p>
-            <p className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(data.monthlyIncomeCents[currency] ?? 0, currency)}</p>
-          </div>
-          <div className="rounded-lg border p-4">
-            <p className="text-sm text-muted-foreground">Expenses this month ({currency})</p>
-            <p className="text-2xl font-semibold text-destructive">{formatMoney(data.monthlyExpenseCents[currency] ?? 0, currency)}</p>
-          </div>
-          <div className="rounded-lg border p-4">
-            <p className="text-sm text-muted-foreground">Reimbursable ({currency})</p>
-            <p className="text-2xl font-semibold">{formatMoney(data.reimbursableCents[currency] ?? 0, currency)}</p>
-          </div>
-        </div>
-      ))}
-
-      {chartCurrencies.length === 0 ? (
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">No income or expense activity in the last 6 months.</p>
+      {!currency ? (
+        <div className="rounded-xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
+          No accounts or activity yet. <Link href="/accounts" className="text-primary underline">Add an account</Link> or{' '}
+          <Link href="/settings/data" className="text-primary underline">import a backup</Link> to get started.
         </div>
       ) : (
-        chartCurrencies.map((currency) => {
-          const trendSeries = data.trend.map((t) => ({
-            month: t.month,
-            incomeCents: t.incomeCents[currency] ?? 0,
-            expenseCents: t.expenseCents[currency] ?? 0,
-          }));
-          const spendingSeries = data.spendingByCategory
-            .filter((s) => s.currency === currency)
-            .map((s) => ({ name: categoryName(s.categoryId), cents: s.cents }));
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Total balance" icon={<LandmarkIcon />} value={formatMoney(data.balancesByCurrency[currency] ?? 0, currency)} />
+            <StatCard label="Income this month" tone="positive" icon={<ArrowDownLeftIcon />} value={formatMoney(data.monthlyIncomeCents[currency] ?? 0, currency)} />
+            <StatCard label="Expenses this month" tone="negative" icon={<ArrowUpRightIcon />} value={formatMoney(data.monthlyExpenseCents[currency] ?? 0, currency)} />
+            <StatCard label="Reimbursable" tone="neutral" icon={<ReceiptIcon />} value={formatMoney(data.reimbursableCents[currency] ?? 0, currency)} hint="To claim or submitting" />
+          </div>
 
-          return (
-            <div key={currency} className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-lg border p-4">
-                <h2 className="mb-2 font-medium">Income vs Expense ({currency}, 6 months)</h2>
-                <TrendChart data={trendSeries} />
-              </div>
-              <div className="rounded-lg border p-4">
-                <h2 className="mb-2 font-medium">Spending by Category ({currency})</h2>
-                {spendingSeries.length > 0
-                  ? <SpendingPie data={spendingSeries} />
-                  : <p className="text-sm text-muted-foreground">No expenses recorded this month.</p>}
-              </div>
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-3">
+              <Panel title="Income vs expense · last 6 months">
+                {trendSeries.some((t) => t.incomeCents || t.expenseCents)
+                  ? <TrendChart data={trendSeries} currency={currency} />
+                  : <p className="text-sm text-muted-foreground">No income or expenses in {currency} in the last 6 months.</p>}
+              </Panel>
             </div>
-          );
-        })
+            <div className="lg:col-span-2">
+              <Panel title="Spending by category">
+                {spendingSeries.length > 0
+                  ? <SpendingBars data={spendingSeries} currency={currency} />
+                  : <p className="text-sm text-muted-foreground">No expenses in {currency} this month.</p>}
+              </Panel>
+            </div>
+          </div>
+        </>
       )}
 
-      <div className="rounded-lg border p-4">
-        <h2 className="mb-3 font-medium">Budget summary</h2>
-        {data.budgetProgress.length > 0 ? (
-          <div className="space-y-3">
-            {data.budgetProgress.map(({ budget, category, plannedCents, spentCents, remainingCents, percentUsed }) => (
-              <div key={budget.id}>
-                <div className="flex items-center justify-between text-sm">
-                  <span>{category.icon} {category.name}</span>
-                  <span className={percentUsed > 100 ? 'text-destructive font-medium' : ''}>
-                    {formatMoney(spentCents, budget.currency)} / {formatMoney(plannedCents, budget.currency)}
-                  </span>
-                </div>
-                <Progress value={Math.min(percentUsed, 100)} className="mt-2" />
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Remaining: {formatMoney(remainingCents, budget.currency)} ({percentUsed.toFixed(0)}% used)
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No budgets set for this month.</p>
-        )}
-      </div>
-
-      <div className="rounded-lg border">
-        <h2 className="border-b p-4 font-medium">Recent transactions</h2>
-        <div className="divide-y">
-          {recent.slice(0, 8).map((t) => (
-            <div key={t.id} className="flex items-center justify-between p-3">
-              <span>{t.details}</span>
-              <span className="text-sm text-muted-foreground">{t.payDate}</span>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Budgets" action={<Link href={`/budgets?month=${month}`} className="text-sm text-primary hover:underline">View all</Link>}>
+          {budgets.length > 0 ? (
+            <div className="space-y-4">
+              {summarizeBudgets(budgets).map((sum) => <BudgetSummaryCard key={sum.currency} s={sum} compact />)}
+              {budgets.map((p) => <BudgetRow key={p.budget.id} progress={p} compact />)}
             </div>
-          ))}
-          {recent.length === 0 && <p className="p-4 text-sm text-muted-foreground">No transactions yet.</p>}
-        </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No {currency ? `${currency} ` : ''}budgets set for this month.</p>
+          )}
+        </Panel>
+        <section className="rounded-xl border bg-card shadow-xs">
+          <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+            <h2 className="font-medium">Recent transactions</h2>
+            <Link href="/transactions?month=all" className="text-sm text-primary hover:underline">View all</Link>
+          </div>
+          <div className="divide-y">
+            {recent.slice(0, 8).map((t) => <TransactionRow key={t.id} t={t} accounts={accounts} categories={categories} />)}
+            {recent.length === 0 && <p className="p-4 text-sm text-muted-foreground">No {currency ? `${currency} ` : ''}transactions yet.</p>}
+          </div>
+        </section>
       </div>
-    </div>
+    </>
   );
-}
-
-function previousMonth(month: string) {
-  const [y, m] = month.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7);
-}
-function nextMonth(month: string) {
-  const [y, m] = month.split('-').map(Number);
-  return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
 }

@@ -20,7 +20,7 @@ afterAll(async () => {
 
 describe('account actions', () => {
   it('creates an account scoped to the current user', async () => {
-    const account = await createAccount({ name: 'Wallet', type: 'wallet', currency: 'USD', startingBalance: '0' });
+    const account = await createAccount({ name: 'Wallet', currency: 'USD', startingBalance: '0' });
     expect(account.userId).toBe(user.id);
   });
 
@@ -31,7 +31,7 @@ describe('account actions', () => {
   });
 
   it('archives an account', async () => {
-    const account = await createAccount({ name: 'Old Cash', type: 'cash', currency: 'USD', startingBalance: '0' });
+    const account = await createAccount({ name: 'Old Cash', currency: 'USD', startingBalance: '0' });
     const updated = await setAccountArchived(account.id, true);
     expect(updated.archived).toBe(true);
   });

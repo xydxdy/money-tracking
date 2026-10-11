@@ -42,11 +42,15 @@ describe('reimbursements', () => {
   });
 
   it('updates reimbursement status', async () => {
-    const updated = await setReimbursementStatus(txnId, 'claimed');
-    expect(updated.reimbursementStatus).toBe('claimed');
+    expect((await setReimbursementStatus(txnId, 'submitting')).reimbursementStatus).toBe('submitting');
+    expect((await setReimbursementStatus(txnId, 'claimed')).reimbursementStatus).toBe('claimed');
   });
 
   it("rejects updating another user's transaction", async () => {
-    await expect(setReimbursementStatus(otherTxnId, 'reimbursed')).rejects.toThrow('NOT_FOUND');
+    await expect(setReimbursementStatus(otherTxnId, 'claimed')).rejects.toThrow('NOT_FOUND');
+  });
+
+  it('rejects a status that no longer exists', async () => {
+    await expect(setReimbursementStatus(txnId, 'reimbursed' as never)).rejects.toThrow();
   });
 });

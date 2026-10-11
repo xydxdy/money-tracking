@@ -22,7 +22,6 @@ describe('schema', () => {
     const [account] = await db.insert(schema.accounts).values({
       userId: user.id,
       name: 'Test Bank',
-      type: 'bank',
       currency: 'USD',
       startingBalance: '100.00',
     }).returning();

@@ -7,15 +7,16 @@ import { getCurrentUser } from '@/lib/session';
 import { createTransaction, updateTransaction } from '@/app/actions/transactions';
 
 let userA: { id: string; email: string }, userB: { id: string; email: string };
-let accountA: { id: string }, accountA2: { id: string }, accountB: { id: string };
+let accountA: { id: string }, accountA2: { id: string }, accountB: { id: string }, accountTHB: { id: string };
 let categoryA: { id: string };
 
 beforeAll(async () => {
   [userA] = await db.insert(users).values({ email: 'txn-a@example.com', passwordHash: 'x' }).returning();
   [userB] = await db.insert(users).values({ email: 'txn-b@example.com', passwordHash: 'x' }).returning();
-  [accountA] = await db.insert(accounts).values({ userId: userA.id, name: 'A', type: 'bank', currency: 'USD', startingBalance: '0' }).returning();
-  [accountA2] = await db.insert(accounts).values({ userId: userA.id, name: 'A2', type: 'cash', currency: 'USD', startingBalance: '0' }).returning();
-  [accountB] = await db.insert(accounts).values({ userId: userB.id, name: 'B', type: 'bank', currency: 'USD', startingBalance: '0' }).returning();
+  [accountA] = await db.insert(accounts).values({ userId: userA.id, name: 'A', currency: 'USD', startingBalance: '0' }).returning();
+  [accountA2] = await db.insert(accounts).values({ userId: userA.id, name: 'A2', currency: 'USD', startingBalance: '0' }).returning();
+  [accountTHB] = await db.insert(accounts).values({ userId: userA.id, name: 'Baht', currency: 'THB', startingBalance: '0' }).returning();
+  [accountB] = await db.insert(accounts).values({ userId: userB.id, name: 'B', currency: 'USD', startingBalance: '0' }).returning();
   [categoryA] = await db.insert(categories).values({ userId: userA.id, name: 'Food', type: 'expense' }).returning();
   (getCurrentUser as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ id: userA.id, email: userA.email, name: null });
 });
@@ -116,5 +117,53 @@ describe('updateTransaction', () => {
     const updated = await updateTransaction(txn.id, { note: null, categoryId: null });
     expect(updated.note).toBeNull();
     expect(updated.categoryId).toBeNull();
+  });
+
+  it('drops toAmount on a transfer between two accounts of the same currency', async () => {
+    const txn = await createTransaction({
+      details: 'Same ccy', type: 'transfer', payDate: '2026-09-10',
+      fromAccountId: accountA.id, toAccountId: accountA2.id, amount: '10.00', toAmount: '99.00', currency: 'USD',
+    });
+    expect(txn.toAmount).toBeNull();
+  });
+
+  it('requires toAmount on a transfer between accounts of different currencies', async () => {
+    await expect(createTransaction({
+      details: 'Cross ccy', type: 'transfer', payDate: '2026-09-10',
+      fromAccountId: accountA.id, toAccountId: accountTHB.id, amount: '10.00', currency: 'USD',
+    })).rejects.toThrow('TO_AMOUNT_REQUIRED');
+  });
+
+  it('stores toAmount on a cross-currency transfer', async () => {
+    const txn = await createTransaction({
+      details: 'Cross ccy ok', type: 'transfer', payDate: '2026-09-10',
+      fromAccountId: accountA.id, toAccountId: accountTHB.id, amount: '10.00', toAmount: '330.00', currency: 'USD',
+    });
+    expect(txn.toAmount).toBe('330.00');
+  });
+
+  it('requires toAmount when an update makes a transfer cross-currency', async () => {
+    const txn = await createTransaction({
+      details: 'Becomes cross', type: 'transfer', payDate: '2026-09-10',
+      fromAccountId: accountA.id, toAccountId: accountA2.id, amount: '10.00', currency: 'USD',
+    });
+    await expect(updateTransaction(txn.id, { toAccountId: accountTHB.id })).rejects.toThrow('TO_AMOUNT_REQUIRED');
+  });
+
+  it('saves an http(s) link and lets an update clear it', async () => {
+    const txn = await createTransaction({
+      details: 'With receipt', type: 'expense', payDate: '2026-09-10', fromAccountId: accountA.id, amount: '4.00',
+      link: 'https://drive.google.com/file/d/abc/view',
+    });
+    expect(txn.link).toBe('https://drive.google.com/file/d/abc/view');
+    const cleared = await updateTransaction(txn.id, { link: null });
+    expect(cleared.link).toBeNull();
+  });
+
+  it('rejects links that are not http(s) URLs', async () => {
+    const base = { details: 'Bad link', type: 'expense' as const, payDate: '2026-09-10', fromAccountId: accountA.id, amount: '4.00' };
+    await expect(createTransaction({ ...base, link: 'javascript:alert(1)' })).rejects.toThrow();
+    await expect(createTransaction({ ...base, link: 'not a url' })).rejects.toThrow();
+    await expect(createTransaction({ ...base, link: 'ftp://example.com/x' })).rejects.toThrow();
   });
 });

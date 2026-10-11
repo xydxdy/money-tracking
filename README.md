@@ -12,6 +12,8 @@ A multi-user personal finance app. Next.js (App Router) + TypeScript + PostgreSQ
 Account balance = starting balance + income to this account + transfers in − expenses from this account − transfers out.
 This applies uniformly to every account type, including `credit`: spending on a credit account moves its balance negative (representing amount owed); paying it off is a transfer that brings it back toward zero.
 
+**Loans** (lending to or borrowing from a person, and repayments either way) move account balances like this too — lending and paying back take money out, borrowing and being paid back bring it in — but they never count as income, expenses or budget spending. The **Loans** page shows, per person and currency, how much they owe you or you owe them.
+
 Amounts are stored as `numeric(14,2)` and calculated as integer cents. Totals are always grouped by currency — the app never sums across currencies.
 
 ## Local development
@@ -26,16 +28,19 @@ Amounts are stored as `numeric(14,2)` and calculated as integer cents. Totals ar
    ```
 5. **Create your first user**: `npm run create-user -- --email you@example.com --password "a-strong-password" --name "Your Name"`
 6. **Start the app**: `npm run dev`, then sign in at `/login`.
-7. **Import your backup**: go to **Settings → Data** (`/settings/data`), upload `docs/finance-backup-2026-09-28.json`, review the preview (16 accounts, 23 categories, 226 transactions, 32 budgets, and one warning about a missing account that will be recreated as an archived "Recovered Account"), then confirm.
+7. **Import your backup**: go to **Settings → Data** (`/settings/data`), drop in `docs/finance-backup-2026-09-28.json`, review the preview (16 accounts, 23 categories, 226 transactions, 32 budgets, and one warning about a missing account that will be recreated as an archived "Recovered Account"), then confirm.
 8. **Run tests**: `npm test` (runs against `DATABASE_URL_TEST`, never the dev/prod database).
 
-There is no public sign-up page: users are created with `npm run create-user`.
+There is no public sign-up page: users are created with `npm run create-user`. Signed-in users can change their name, email and password under **Settings → Profile** (email and password changes ask for the current password). Emails are matched ignoring case at sign-in.
+New users start with default account types (Bank, Credit card, Cash, E-wallet, Travel card) and a starter set of expense, income and transfer categories. Both can be added to and edited in the app: account types under **Settings → Account types**, categories under **Settings → Categories**. Existing users can add any missing default types from the Account types page.
 
 ## Importing and exporting
 
-- Import validates the whole file first (duplicate ids, missing account/category references, malformed transactions, invalid amounts and dates) and shows a preview. Nothing is written until you confirm, and the import runs in a single database transaction, so it either fully succeeds or changes nothing.
-- Every imported row belongs to the signed-in user. Any user id in the file is ignored, and record ids are regenerated, so the same backup can be imported into different accounts. Importing the same file twice into one account creates duplicates; the preview warns you if you already have data.
-- **Download export (JSON)** on the same page produces a file in the same format, which can be imported again.
+- Drag and drop (or click to choose) a `.json` backup on **Settings → Data**. The whole file is validated first (duplicate ids, missing account/category references, malformed transactions, invalid amounts and dates) and a preview is shown. Nothing is written until you confirm.
+- **An import replaces all of your data.** Your existing accounts, categories, transactions and budgets are deleted and replaced by the file's contents. It is never merged, so importing the same file twice gives the same result. Deleting and inserting happen in one database transaction: if the import fails, your old data is left untouched.
+- Every imported row belongs to the signed-in user; any user id in the file is ignored and record ids are regenerated, so the same backup can be imported into different accounts. Other users' data is never affected.
+- **Download export (JSON)** on the same page produces a file in the same format (format version 2), which can be imported again.
+- Reimbursement statuses are **To claim → Submitting → Claimed**. Version 1 files (such as the bundled backup) used `to_claim / claimed / reimbursed`; on import they are mapped `claimed → submitting` and `reimbursed → claimed`. Only Claimed reimbursements stop counting as outstanding on the dashboard.
 
 ## Deploying to Vercel
 

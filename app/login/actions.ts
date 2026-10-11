@@ -16,3 +16,8 @@ export async function loginAction(formData: FormData) {
     throw err;
   }
 }
+
+/** `useActionState` form of loginAction: returns the error to show, or redirects on success. */
+export async function loginFormAction(_prev: { error?: string } | undefined, formData: FormData): Promise<{ error?: string }> {
+  return (await loginAction(formData)) ?? {};
+}

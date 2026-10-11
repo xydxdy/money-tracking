@@ -15,11 +15,26 @@ const budgetInput = z.object({
   plannedAmount: z.string().regex(/^\d+(\.\d{1,2})?$/),
 });
 
+// Postgres unique_violation; drizzle may wrap the driver error, so check `cause` too.
+function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; cause?: { code?: string } };
+  return e?.code === '23505' || e?.cause?.code === '23505';
+}
+
+async function withDuplicateCheck<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (err) {
+    if (isUniqueViolation(err)) throw new Error('BUDGET_EXISTS');
+    throw err;
+  }
+}
+
 export async function createBudget(input: z.infer<typeof budgetInput>) {
   const user = await getCurrentUser();
   const data = budgetInput.parse(input);
   if (!(await getUserCategory(data.categoryId, user.id))) throw new Error('FORBIDDEN');
-  const [budget] = await db.insert(budgets).values({ ...data, userId: user.id }).returning();
+  const [budget] = await withDuplicateCheck(() => db.insert(budgets).values({ ...data, userId: user.id }).returning());
   return budget;
 }
 
@@ -34,8 +49,8 @@ export async function updateBudget(id: string, input: Partial<z.infer<typeof bud
   if (data.categoryId && !(await getUserCategory(data.categoryId, user.id))) {
     throw new Error('FORBIDDEN');
   }
-  const [updated] = await db.update(budgets).set({ ...data, updatedAt: new Date() })
-    .where(and(eq(budgets.id, id), eq(budgets.userId, user.id))).returning();
+  const [updated] = await withDuplicateCheck(() => db.update(budgets).set({ ...data, updatedAt: new Date() })
+    .where(and(eq(budgets.id, id), eq(budgets.userId, user.id))).returning());
   return updated;
 }
 

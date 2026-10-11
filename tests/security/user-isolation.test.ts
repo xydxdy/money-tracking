@@ -26,7 +26,7 @@ function actAs(user: { id: string; email: string }) {
 beforeAll(async () => {
   [userA] = await db.insert(users).values({ email: 'iso-a@example.com', passwordHash: 'x' }).returning();
   [userB] = await db.insert(users).values({ email: 'iso-b@example.com', passwordHash: 'x' }).returning();
-  [accountA] = await db.insert(accounts).values({ userId: userA.id, name: 'A', type: 'bank', currency: 'USD', startingBalance: '0' }).returning();
+  [accountA] = await db.insert(accounts).values({ userId: userA.id, name: 'A', currency: 'USD', startingBalance: '0' }).returning();
   [categoryA] = await db.insert(categories).values({ userId: userA.id, name: 'Food', type: 'expense' }).returning();
 
   actAs(userA);
@@ -35,7 +35,7 @@ beforeAll(async () => {
     reimbursable: true,
   });
   [budgetA] = await db.insert(budgets).values({ userId: userA.id, month: '2026-09', categoryId: categoryA.id, currency: 'USD', plannedAmount: '100.00' }).returning();
-  [accountB] = await db.insert(accounts).values({ userId: userB.id, name: 'B', type: 'bank', currency: 'USD', startingBalance: '0' }).returning();
+  [accountB] = await db.insert(accounts).values({ userId: userB.id, name: 'B', currency: 'USD', startingBalance: '0' }).returning();
 });
 
 afterAll(async () => {
@@ -117,12 +117,12 @@ describe('user isolation', () => {
   it('User B cannot see or change User A reimbursements', async () => {
     actAs(userB);
     expect((await listReimbursables()).find((t) => t.id === transactionA.id)).toBeUndefined();
-    await expect(setReimbursementStatus(transactionA.id, 'reimbursed')).rejects.toThrow('NOT_FOUND');
+    await expect(setReimbursementStatus(transactionA.id, 'claimed')).rejects.toThrow('NOT_FOUND');
   });
 
   it('a userId smuggled into action input is ignored in favour of the session user', async () => {
     actAs(userB);
-    const created = await createAccount({ name: 'Sneaky', type: 'bank', currency: 'USD', startingBalance: '0', userId: userA.id } as Parameters<typeof createAccount>[0]);
+    const created = await createAccount({ name: 'Sneaky', currency: 'USD', startingBalance: '0', userId: userA.id } as Parameters<typeof createAccount>[0]);
     expect(created.userId).toBe(userB.id);
   });
 

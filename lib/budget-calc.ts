@@ -1,12 +1,13 @@
 import { db } from '@/db/client';
 import { budgets, transactions, categories } from '@/db/schema';
-import { and, eq, gte, lt } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { toCents } from '@/lib/money';
 
 export async function calculateBudgetProgress(userId: string, month: string) {
   const rows = await db.select().from(budgets)
     .innerJoin(categories, eq(budgets.categoryId, categories.id))
-    .where(and(eq(budgets.userId, userId), eq(budgets.month, month)));
+    .where(and(eq(budgets.userId, userId), eq(budgets.month, month)))
+    .orderBy(asc(sql`lower(${categories.name})`), asc(budgets.currency));
 
   // `month` is validated upstream as `YYYY-MM`; bound the range with real
   // date comparisons (rather than a `payDate.startsWith(month)` string check)
@@ -22,16 +23,19 @@ export async function calculateBudgetProgress(userId: string, month: string) {
       eq(transactions.type, 'expense'),
       gte(transactions.payDate, rangeStart),
       lt(transactions.payDate, rangeEnd)
-    ));
+    ))
+    .orderBy(desc(transactions.payDate), desc(transactions.createdAt), desc(transactions.id));
 
   return rows.map(({ budgets: budget, categories: category }) => {
-    const spentCents = monthTransactions
-      // Only the budget's own currency counts — never sum across currencies.
-      .filter((t) => t.categoryId === category.id && t.currency === budget.currency)
-      .reduce((sum, t) => sum + toCents(t.amount), 0);
+    // Only the budget's own currency counts — never sum across currencies.
+    const budgetTransactions = monthTransactions.filter((t) => t.categoryId === category.id && t.currency === budget.currency);
+    const spentCents = budgetTransactions.reduce((sum, t) => sum + toCents(t.amount), 0);
     const plannedCents = toCents(budget.plannedAmount);
     const remainingCents = plannedCents - spentCents;
     const percentUsed = plannedCents === 0 ? 0 : (spentCents / plannedCents) * 100;
-    return { budget, category, plannedCents, spentCents, remainingCents, percentUsed };
+    return {
+      budget, category, plannedCents, spentCents, remainingCents, percentUsed,
+      transactions: budgetTransactions.map((t) => ({ id: t.id, details: t.details, payDate: t.payDate, amount: t.amount, currency: t.currency })),
+    };
   });
 }

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import { db } from '@/db/client';
 import { users } from '@/db/schema';
+import { seedUserDefaults } from '@/lib/defaults';
 
 function arg(name: string): string | undefined {
   const idx = process.argv.indexOf(`--${name}`);
@@ -11,8 +12,12 @@ function arg(name: string): string | undefined {
 
 export async function createUser(email: string, password: string, name?: string) {
   const passwordHash = await bcrypt.hash(password, 12);
-  const [user] = await db.insert(users).values({ email, passwordHash, name }).returning();
-  return user;
+  return db.transaction(async (tx) => {
+    const [user] = await tx.insert(users).values({ email: email.trim().toLowerCase(), passwordHash, name }).returning();
+    // New users start with the default account types and categories.
+    await seedUserDefaults(user.id, tx);
+    return user;
+  });
 }
 
 async function main() {
