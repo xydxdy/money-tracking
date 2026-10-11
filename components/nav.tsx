@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOutAction } from '@/app/actions/auth-ui';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
@@ -29,7 +30,8 @@ export function Nav() {
         ))}
       </ul>
       <ul className="space-y-1 border-t pt-4">
-        <li><Link href="/settings" className="block rounded-md px-3 py-2 text-sm hover:bg-accent/50">Settings</Link></li>
+        <li><Link href="/settings" className={`block rounded-md px-3 py-2 text-sm ${pathname.startsWith('/settings') ? 'bg-accent font-medium' : 'hover:bg-accent/50'}`}>Settings</Link></li>
+        <li><ThemeToggle /></li>
         <li><form action={signOutAction}><button className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-accent/50">Sign Out</button></form></li>
       </ul>
     </nav>

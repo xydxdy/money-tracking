@@ -1,4 +1,5 @@
-import { listBudgetProgress, copyPreviousMonth } from '@/app/actions/budgets';
+import { listBudgetProgress, copyPreviousMonth, deleteBudget } from '@/app/actions/budgets';
+import { ConfirmButton } from '@/components/confirm-button';
 import { listCategories } from '@/app/actions/categories';
 import { formatMoney } from '@/lib/money';
 import { BudgetForm } from '@/components/budget-form';
@@ -36,9 +37,16 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
           <div key={p.budget.id} className="rounded-lg border p-4">
             <div className="flex items-center justify-between">
               <span>{p.category.icon} {p.category.name}</span>
-              <span className={p.percentUsed > 100 ? 'text-destructive font-medium' : ''}>
-                {formatMoney(p.spentCents, p.budget.currency)} / {formatMoney(p.plannedCents, p.budget.currency)}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className={p.percentUsed > 100 ? 'text-destructive font-medium' : ''}>
+                  {formatMoney(p.spentCents, p.budget.currency)} / {formatMoney(p.plannedCents, p.budget.currency)}
+                </span>
+                <ConfirmButton
+                  label="Delete"
+                  description={`Delete the ${p.category.name} budget for ${month}? Transactions are not affected.`}
+                  onConfirm={async () => { 'use server'; await deleteBudget(p.budget.id); }}
+                />
+              </div>
             </div>
             <Progress value={Math.min(p.percentUsed, 100)} className="mt-2" />
             <p className="mt-1 text-sm text-muted-foreground">

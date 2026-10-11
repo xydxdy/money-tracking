@@ -1,4 +1,5 @@
-import { listCategories } from '@/app/actions/categories';
+import { listCategories, deleteCategory } from '@/app/actions/categories';
+import { ConfirmButton } from '@/components/confirm-button';
 import { CategoryForm } from '@/components/category-form';
 import { Badge } from '@/components/ui/badge';
 
@@ -14,10 +15,15 @@ export default async function CategoriesPage() {
           {categories.map((c) => (
             <div key={c.id} className="flex items-center justify-between rounded-lg border p-3">
               <span>{c.icon} {c.name}</span>
-              <div className="flex gap-1">
+              <div className="flex items-center gap-1">
                 <Badge variant="outline">{c.type}</Badge>
                 {c.noBudget && <Badge variant="secondary">No budget</Badge>}
                 {c.archived && <Badge variant="secondary">Archived</Badge>}
+                <ConfirmButton
+                  label="Delete"
+                  description={`Delete "${c.name}"? Historical transactions keep their data but lose this category, and its budgets are removed.`}
+                  onConfirm={async () => { 'use server'; await deleteCategory(c.id); }}
+                />
               </div>
             </div>
           ))}

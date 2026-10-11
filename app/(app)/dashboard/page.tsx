@@ -58,7 +58,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </div>
           <div className="rounded-lg border p-4">
             <p className="text-sm text-muted-foreground">Income this month ({currency})</p>
-            <p className="text-2xl font-semibold text-emerald-600">{formatMoney(data.monthlyIncomeCents[currency] ?? 0, currency)}</p>
+            <p className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(data.monthlyIncomeCents[currency] ?? 0, currency)}</p>
           </div>
           <div className="rounded-lg border p-4">
             <p className="text-sm text-muted-foreground">Expenses this month ({currency})</p>

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { ConfirmButton } from '@/components/confirm-button';
 import type { Account, Category, Transaction } from '@/db/schema';
 
 const TYPES = ['expense', 'income', 'transfer'] as const;
@@ -46,7 +47,6 @@ export function TransactionForm({
   const [reimbursable, setReimbursable] = useState(existing?.reimbursable ?? false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   const relevantCategories = categories.filter((c) => c.type === type);
   // Once the user switches type away from the transaction's original type, the original
@@ -94,21 +94,6 @@ export function TransactionForm({
       setError(describeError(err));
     } finally {
       setPending(false);
-    }
-  }
-
-  async function onDelete() {
-    if (!existing) return;
-    if (!window.confirm('Delete this transaction? This cannot be undone.')) return;
-    setDeleting(true);
-    setError(null);
-    try {
-      await deleteTransaction(existing.id);
-      router.push('/transactions');
-      router.refresh();
-    } catch (err) {
-      setError(describeError(err));
-      setDeleting(false);
     }
   }
 
@@ -198,11 +183,14 @@ export function TransactionForm({
 
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="flex items-center gap-2">
-        <Button type="submit" disabled={pending || deleting}>{pending ? 'Saving…' : 'Save transaction'}</Button>
+        <Button type="submit" disabled={pending}>{pending ? 'Saving…' : 'Save transaction'}</Button>
         {existing && (
-          <Button type="button" variant="destructive" disabled={pending || deleting} onClick={onDelete}>
-            {deleting ? 'Deleting…' : 'Delete'}
-          </Button>
+          <ConfirmButton
+            label="Delete"
+            description="Delete this transaction? This cannot be undone."
+            onConfirm={() => deleteTransaction(existing.id)}
+            redirectTo="/transactions"
+          />
         )}
       </div>
     </form>

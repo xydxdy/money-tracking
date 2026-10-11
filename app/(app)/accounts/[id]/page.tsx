@@ -1,4 +1,5 @@
-import { getAccountWithBalance } from '@/app/actions/accounts';
+import { getAccountWithBalance, setAccountArchived } from '@/app/actions/accounts';
+import { ConfirmButton } from '@/components/confirm-button';
 import { formatMoney, toCents } from '@/lib/money';
 import { db } from '@/db/client';
 import { transactions } from '@/db/schema';
@@ -24,7 +25,18 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">{account.name}</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold">{account.name}</h1>
+          <ConfirmButton
+            variant="outline"
+            label={account.archived ? 'Unarchive' : 'Archive'}
+            confirmLabel={account.archived ? 'Unarchive' : 'Archive'}
+            description={account.archived
+              ? `Unarchive "${account.name}"? It will appear in account pickers again.`
+              : `Archive "${account.name}"? Its history and balance are kept, but it is hidden from new transactions.`}
+            onConfirm={async () => { 'use server'; await setAccountArchived(id, !account.archived); }}
+          />
+        </div>
         <p className="text-muted-foreground">{account.type} · {account.currency}</p>
         <p className="mt-2 text-3xl font-bold">{formatMoney(balance.cents, account.currency)}</p>
       </div>
