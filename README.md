@@ -31,7 +31,7 @@ Amounts are stored as `numeric(14,2)` and calculated as integer cents. Totals ar
 7. **Import your backup**: go to **Settings → Data** (`/settings/data`), drop in `docs/finance-backup-2026-09-28.json`, review the preview (16 accounts, 23 categories, 226 transactions, 32 budgets, and one warning about a missing account that will be recreated as an archived "Recovered Account"), then confirm.
 8. **Run tests**: `npm test` (runs against `DATABASE_URL_TEST`, never the dev/prod database).
 
-There is no public sign-up page: users are created with `npm run create-user`. Signed-in users can change their name, email and password under **Settings → Profile** (email and password changes ask for the current password). Emails are matched ignoring case at sign-in.
+Anyone who can reach the app can create an account at **/signup** (also linked from the login page); new users get the default account types and categories. Set `DISABLE_SIGNUP=true` to turn public sign-up off — users can then only be created with `npm run create-user`. Signed-in users can change their name, email and password under **Settings → Profile** (email and password changes ask for the current password). Emails are matched ignoring case at sign-in.
 New users start with default account types (Bank, Credit card, Cash, E-wallet, Travel card) and a starter set of expense, income and transfer categories. Both can be added to and edited in the app: account types under **Settings → Account types** (Bank and Cash are always there and locked; deleting another type moves its accounts to Bank), categories under **Settings → Categories**. Existing users can add any missing default types from the Account types page.
 
 ## Importing and exporting
@@ -46,7 +46,7 @@ New users start with default account types (Bank, Credit card, Cash, E-wallet, T
 
 1. **Create the database**: create a Neon Postgres project (or Vercel Postgres) from the Vercel dashboard.
 2. **Set `DATABASE_URL`**: in the Vercel project's Environment Variables, paste the Neon pooled connection string (it includes `sslmode=require`).
-3. **Set `AUTH_SECRET`**: generate with `openssl rand -base64 32` and add it as an environment variable.
+3. **Set `AUTH_SECRET`**: generate with `openssl rand -base64 32` and add it as an environment variable. Add `DISABLE_SIGNUP=true` too if the app should not accept public sign-ups.
 4. **Run migrations against production**: `DATABASE_URL="<neon-connection-string>" npm run db:migrate` from your machine before first traffic.
 5. **Create the first production user**: `DATABASE_URL="<neon-connection-string>" npm run create-user -- --email you@example.com --password "..."`.
 6. **Deploy**: connect the repo in Vercel and deploy; subsequent pushes to `main` auto-deploy.

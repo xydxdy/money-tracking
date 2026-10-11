@@ -1,9 +1,6 @@
 import 'dotenv/config';
 import { fileURLToPath } from 'node:url';
-import bcrypt from 'bcryptjs';
-import { db } from '@/db/client';
-import { users } from '@/db/schema';
-import { seedUserDefaults } from '@/lib/defaults';
+import { registerUser } from '@/lib/users';
 
 function arg(name: string): string | undefined {
   const idx = process.argv.indexOf(`--${name}`);
@@ -11,13 +8,7 @@ function arg(name: string): string | undefined {
 }
 
 export async function createUser(email: string, password: string, name?: string) {
-  const passwordHash = await bcrypt.hash(password, 12);
-  return db.transaction(async (tx) => {
-    const [user] = await tx.insert(users).values({ email: email.trim().toLowerCase(), passwordHash, name }).returning();
-    // New users start with the default account types and categories.
-    await seedUserDefaults(user.id, tx);
-    return user;
-  });
+  return registerUser({ email, password, name });
 }
 
 async function main() {

@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { WalletIcon } from 'lucide-react';
+import { isSignupEnabled } from '@/lib/users';
 import { LoginForm } from './login-form';
 
 export default function LoginPage() {
@@ -17,6 +19,11 @@ export default function LoginPage() {
         <div className="rounded-xl border bg-card p-6 shadow-sm">
           <LoginForm />
         </div>
+        {isSignupEnabled() && (
+          <p className="text-center text-sm text-muted-foreground">
+            New here? <Link href="/signup" className="font-medium text-primary hover:underline">Create an account</Link>
+          </p>
+        )}
       </div>
     </div>
   );
