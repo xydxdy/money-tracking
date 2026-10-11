@@ -49,57 +49,73 @@ export function ListToolbar({ values, selects, sorts, dateRange = true }: {
   const active = Object.entries(values).some(([k, v]) => k !== 'sort' && v);
   const sortItems = Object.fromEntries(Object.entries(sorts));
 
+  const sortSelect = (
+    <Select value={values.sort ?? Object.keys(sorts)[0]} items={sortItems} onValueChange={(v) => apply({ sort: v ?? undefined })}>
+      <SelectTrigger className="w-full sm:w-48" aria-label="Sort"><SelectValue /></SelectTrigger>
+      <SelectContent alignItemWithTrigger={false}>
+        {Object.entries(sorts).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+
   return (
     <div className={`space-y-3 rounded-xl border bg-card p-3 shadow-xs transition-opacity ${pending ? 'opacity-70' : ''}`}>
-      <div className="relative">
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search details, notes and people…"
-          aria-label="Search"
-          className="pl-8"
-        />
+      {/* Row 1: search and sort */}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative min-w-0 flex-1">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search details, notes and people…"
+            aria-label="Search"
+            className="pl-8"
+          />
+        </div>
+        {sortSelect}
       </div>
-      <div className="flex flex-wrap items-end gap-2">
-        {selects.map((s) => {
-          const items = { '': `All ${s.label.toLowerCase()}`, ...Object.fromEntries(s.options.map((o) => [o.value, o.label])) };
-          return (
-            <Select key={s.key} value={values[s.key] ?? ''} items={items} onValueChange={(v) => apply({ [s.key]: v || undefined })}>
-              <SelectTrigger className="w-44" aria-label={s.label}><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">All {s.label.toLowerCase()}</SelectItem>
-                {s.options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          );
-        })}
-        {dateRange && (
-          <div role="group" aria-label="Date range" className="flex flex-wrap items-center gap-1.5">
-            <DatePicker compact label="From" key={`from-${values.from ?? ''}`} name="from" defaultValue={values.from}
-              onChange={(iso) => apply({ from: iso || undefined })} />
-            <span className="text-muted-foreground" aria-hidden>–</span>
-            <DatePicker compact label="To" key={`to-${values.to ?? ''}`} name="to" defaultValue={values.to}
-              onChange={(iso) => apply({ to: iso || undefined })} />
-          </div>
-        )}
-        <Select value={values.sort ?? Object.keys(sorts)[0]} items={sortItems} onValueChange={(v) => apply({ sort: v ?? undefined })}>
-          <SelectTrigger className="w-48" aria-label="Sort"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {Object.entries(sorts).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        {active && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => { setQuery(''); startTransition(() => router.replace(values.sort ? `${pathname}?sort=${values.sort}` : pathname, { scroll: false })); }}
-          >
-            <XIcon /> Clear filters
-          </Button>
-        )}
-      </div>
+
+      {/* Row 2: filters and date range */}
+      {(selects.length > 0 || dateRange || active) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {selects.length > 0 && (
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+              {selects.map((s) => {
+                const items = { '': `All ${s.label.toLowerCase()}`, ...Object.fromEntries(s.options.map((o) => [o.value, o.label])) };
+                return (
+                  <Select key={s.key} value={values[s.key] ?? ''} items={items} onValueChange={(v) => apply({ [s.key]: v || undefined })}>
+                    <SelectTrigger className="w-full sm:w-44" aria-label={s.label}><SelectValue /></SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectItem value="">All {s.label.toLowerCase()}</SelectItem>
+                      {s.options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                );
+              })}
+            </div>
+          )}
+          {dateRange && (
+            <div role="group" aria-label="Date range" className="flex flex-wrap items-center gap-1.5">
+              <DatePicker compact label="From" key={`from-${values.from ?? ''}`} name="from" defaultValue={values.from}
+                onChange={(iso) => apply({ from: iso || undefined })} />
+              <span className="text-muted-foreground" aria-hidden>–</span>
+              <DatePicker compact label="To" key={`to-${values.to ?? ''}`} name="to" defaultValue={values.to}
+                onChange={(iso) => apply({ to: iso || undefined })} />
+            </div>
+          )}
+          {active && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="sm:ml-auto"
+              onClick={() => { setQuery(''); startTransition(() => router.replace(values.sort ? `${pathname}?sort=${values.sort}` : pathname, { scroll: false })); }}
+            >
+              <XIcon /> Clear filters
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -215,8 +215,8 @@ describe('commitImport', () => {
     const file = { ...fixture, version: 2, accounts: [{ ...fixture.accounts[0], color: 'emerald', icon: '🐷' }, fixture.accounts[1]] };
     await commitImport(file, userId);
     const accs = await db.select().from(accounts).where(eq(accounts.userId, userId));
-    expect(accs.find((a) => a.name === 'Checking')).toMatchObject({ color: 'emerald', icon: '🐷' });
-    expect(accs.find((a) => a.name === 'Credit')).toMatchObject({ icon: '💳' });
+    expect(accs.find((a) => a.name === 'Checking')).toMatchObject({ color: 'emerald', icon: 'piggy-bank' }); // emoji translated
+    expect(accs.find((a) => a.name === 'Credit')).toMatchObject({ icon: 'credit-card' });
     expect(accs.every((a) => a.color && a.icon)).toBe(true);
   });
 
@@ -228,7 +228,7 @@ describe('commitImport', () => {
   it("maps account types onto the user's own types: legacy keys, existing names, and new names", async () => {
     const [user] = await db.insert(users).values({ email: 'importer-types@example.com', passwordHash: 'x' }).returning();
     userId = user.id;
-    const [mine] = await db.insert(accountTypes).values({ userId, name: 'Credit card', icon: '💳', color: 'violet' }).returning();
+    const [mine] = await db.insert(accountTypes).values({ userId, name: 'Credit card', icon: 'credit-card' }).returning();
     const file = { ...fixture, version: 2, accounts: [
       { ...fixture.accounts[0], id: 'a1', name: 'Card', type: 'credit' },       // legacy key -> existing "Credit card"
       { ...fixture.accounts[0], id: 'a2', name: 'Broker', type: 'Investments' }, // unknown name -> new type
@@ -256,7 +256,7 @@ describe('commitImport', () => {
     await commitImport(file, userId);
     const types = await db.select().from(accountTypes).where(eq(accountTypes.userId, userId));
     expect(types.map((t) => t.name).sort()).toEqual(['Grant', 'Travel card']);
-    expect(types.find((t) => t.name === 'Grant')).toMatchObject({ icon: '🎓', color: 'teal' });
+    expect(types.find((t) => t.name === 'Grant')).toMatchObject({ icon: 'graduation-cap' });
   });
 
   it('flags a loan without a person or kind', () => {
@@ -301,5 +301,13 @@ describe('commitImport', () => {
     const base = { ...fixture.transactions[0], fromAccountId: null };
     expect(previewImport({ ...fixture, transactions: [{ ...base, counterparty: 'Pimpim' }] }).errors).toEqual([]);
     expect(previewImport({ ...fixture, transactions: [base] }).errors.some((e) => e.includes('account or person'))).toBe(true);
+  });
+
+  it('translates category emoji from older backups into icons', async () => {
+    const [user] = await db.insert(users).values({ email: 'importer-icons@example.com', passwordHash: 'x' }).returning();
+    userId = user.id;
+    await commitImport(fixture, userId); // fixture categories use 🍔 and 🔁
+    const cats = await db.select().from(categories).where(eq(categories.userId, userId));
+    expect(Object.fromEntries(cats.map((c) => [c.name, c.icon]))).toEqual({ Food: 'utensils', Transfer: 'repeat' });
   });
 });

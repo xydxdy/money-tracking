@@ -22,12 +22,13 @@ export function CreateCategoryDialog() {
   );
 }
 
-export function CreateBudgetDialog({ month, monthLabel, categories, defaultCurrency }: {
-  month: string; monthLabel: string; categories: Category[]; defaultCurrency?: string;
+export function CreateBudgetDialog({ month, monthLabel, categories, currencies, defaultCurrency, defaultCategoryId, triggerLabel = 'New budget', subtle = false }: {
+  month: string; monthLabel: string; categories: Category[]; currencies: string[]; defaultCurrency?: string; defaultCategoryId?: string;
+  triggerLabel?: string; subtle?: boolean;
 }) {
   return (
-    <EditDialog title={`New budget — ${monthLabel}`} triggerLabel="New budget" create>
-      {(close) => <BudgetForm month={month} categories={categories} defaultCurrency={defaultCurrency} onSaved={close} />}
+    <EditDialog title={`New budget — ${monthLabel}`} triggerLabel={triggerLabel} create={!subtle}>
+      {(close) => <BudgetForm month={month} categories={categories} currencies={currencies} defaultCurrency={defaultCurrency} defaultCategoryId={defaultCategoryId} onSaved={close} />}
     </EditDialog>
   );
 }
@@ -44,14 +45,6 @@ export function CreateAccountTypeDialog() {
   return (
     <EditDialog title="New account type" triggerLabel="New type" create>
       {(close) => <AccountTypeForm onSaved={close} />}
-    </EditDialog>
-  );
-}
-
-export function EditAccountTypeDialog({ type }: { type: AccountType }) {
-  return (
-    <EditDialog title={`Edit ${type.name}`}>
-      {(close) => <AccountTypeForm existing={type} onSaved={close} />}
     </EditDialog>
   );
 }

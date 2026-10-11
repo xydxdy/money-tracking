@@ -21,7 +21,7 @@ describe('seedUserDefaults', () => {
     expect(types.map((t) => t.name).sort()).toEqual(DEFAULT_ACCOUNT_TYPES.map((t) => t.name).sort());
     expect(cats).toHaveLength(DEFAULT_CATEGORIES.length);
     expect(new Set(cats.map((c) => c.type))).toEqual(new Set(['expense', 'income', 'transfer']));
-    expect(types.every((t) => t.icon && t.color)).toBe(true);
+    expect(types.every((t) => t.icon && !('color' in t))).toBe(true);
   });
 
   it('offers Travel card and no Grant among the default account types', () => {

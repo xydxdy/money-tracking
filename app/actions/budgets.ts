@@ -1,7 +1,7 @@
 'use server';
 import { z } from 'zod';
 import { db } from '@/db/client';
-import { budgets } from '@/db/schema';
+import { accounts, budgets } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/lib/session';
@@ -11,7 +11,7 @@ import { calculateBudgetProgress } from '@/lib/budget-calc';
 const budgetInput = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/),
   categoryId: z.string(),
-  currency: z.string().length(3),
+  currency: z.string().trim().length(3).toUpperCase(),
   plannedAmount: z.string().regex(/^\d+(\.\d{1,2})?$/),
 });
 
@@ -30,10 +30,18 @@ async function withDuplicateCheck<T>(write: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Budgets use the currencies of the user's accounts (archived ones included). */
+async function assertAccountCurrency(userId: string, currency: string) {
+  const [match] = await db.select({ id: accounts.id }).from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.currency, currency))).limit(1);
+  if (!match) throw new Error('CURRENCY_NOT_IN_ACCOUNTS');
+}
+
 export async function createBudget(input: z.infer<typeof budgetInput>) {
   const user = await getCurrentUser();
   const data = budgetInput.parse(input);
   if (!(await getUserCategory(data.categoryId, user.id))) throw new Error('FORBIDDEN');
+  await assertAccountCurrency(user.id, data.currency);
   const [budget] = await withDuplicateCheck(() => db.insert(budgets).values({ ...data, userId: user.id }).returning());
   return budget;
 }
@@ -49,6 +57,9 @@ export async function updateBudget(id: string, input: Partial<z.infer<typeof bud
   if (data.categoryId && !(await getUserCategory(data.categoryId, user.id))) {
     throw new Error('FORBIDDEN');
   }
+  // Changing to another currency must be one of the user's account currencies; keeping the
+  // budget's current one is always fine (even if no account uses it any more).
+  if (data.currency && data.currency !== existing.currency) await assertAccountCurrency(user.id, data.currency);
   const [updated] = await withDuplicateCheck(() => db.update(budgets).set({ ...data, updatedAt: new Date() })
     .where(and(eq(budgets.id, id), eq(budgets.userId, user.id))).returning());
   return updated;

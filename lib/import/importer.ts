@@ -3,6 +3,7 @@ import { accounts, categories, transactions, budgets } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { backupSchema, type Backup } from './schema';
 import { uuidv7 } from '@/lib/uuid';
+import { toIconName } from '@/lib/icons';
 import { FALLBACK_APPEARANCE } from '@/lib/account-appearance';
 import { LEGACY_ACCOUNT_TYPES } from '@/lib/defaults';
 import { accountTypes } from '@/db/schema';
@@ -159,7 +160,7 @@ export async function commitImport(json: unknown, userId: string): Promise<Commi
       let type = typeByName.get(name.toLowerCase());
       if (!type) {
         [type] = await tx.insert(accountTypes).values({
-          userId, name, icon: builtIn?.icon ?? FALLBACK_APPEARANCE.icon, color: builtIn?.color ?? FALLBACK_APPEARANCE.color,
+          userId, name, icon: builtIn?.icon ?? FALLBACK_APPEARANCE.icon,
         }).returning();
         typeByName.set(name.toLowerCase(), type);
       }
@@ -173,7 +174,8 @@ export async function commitImport(json: unknown, userId: string): Promise<Commi
         rows.push({
           id: accountIdMap.get(a.id)!, userId, name: a.name, accountTypeId: type?.id ?? null, currency: a.currency,
           startingBalance: a.startingBalance.toFixed(2), note: a.note, archived: a.archived,
-          color: a.color ?? type?.color ?? FALLBACK_APPEARANCE.color, icon: a.icon ?? type?.icon ?? FALLBACK_APPEARANCE.icon,
+          color: a.color ?? FALLBACK_APPEARANCE.color,
+          icon: toIconName(a.icon) ?? toIconName(type?.icon) ?? FALLBACK_APPEARANCE.icon,
         });
       }
       await tx.insert(accounts).values(rows);
@@ -183,13 +185,13 @@ export async function commitImport(json: unknown, userId: string): Promise<Commi
       const referencing = backup.transactions.find((t) => t.fromAccountId === missingId || t.toAccountId === missingId)!;
       await tx.insert(accounts).values({
         id: accountIdMap.get(missingId)!, userId, name: `Recovered Account (${missingId.slice(0, 8)})`,
-        currency: referencing.currency, startingBalance: '0', archived: true, color: 'slate', icon: '❓',
+        currency: referencing.currency, startingBalance: '0', archived: true, color: 'slate', icon: 'help',
       });
     }
 
     if (backup.categories.length > 0) {
       await tx.insert(categories).values(backup.categories.map((c) => ({
-        id: categoryIdMap.get(c.id)!, userId, name: c.name, type: c.type, icon: c.icon,
+        id: categoryIdMap.get(c.id)!, userId, name: c.name, type: c.type, icon: toIconName(c.icon),
       })));
     }
 

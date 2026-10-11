@@ -53,4 +53,8 @@ describe('reimbursements', () => {
   it('rejects a status that no longer exists', async () => {
     await expect(setReimbursementStatus(txnId, 'reimbursed' as never)).rejects.toThrow();
   });
+
+  it('can mark a claim as denied', async () => {
+    expect((await setReimbursementStatus(txnId, 'denied')).reimbursementStatus).toBe('denied');
+  });
 });

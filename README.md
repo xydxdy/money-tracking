@@ -32,7 +32,7 @@ Amounts are stored as `numeric(14,2)` and calculated as integer cents. Totals ar
 8. **Run tests**: `npm test` (runs against `DATABASE_URL_TEST`, never the dev/prod database).
 
 There is no public sign-up page: users are created with `npm run create-user`. Signed-in users can change their name, email and password under **Settings → Profile** (email and password changes ask for the current password). Emails are matched ignoring case at sign-in.
-New users start with default account types (Bank, Credit card, Cash, E-wallet, Travel card) and a starter set of expense, income and transfer categories. Both can be added to and edited in the app: account types under **Settings → Account types**, categories under **Settings → Categories**. Existing users can add any missing default types from the Account types page.
+New users start with default account types (Bank, Credit card, Cash, E-wallet, Travel card) and a starter set of expense, income and transfer categories. Both can be added to and edited in the app: account types under **Settings → Account types** (Bank and Cash are always there and locked; deleting another type moves its accounts to Bank), categories under **Settings → Categories**. Existing users can add any missing default types from the Account types page.
 
 ## Importing and exporting
 
@@ -40,7 +40,7 @@ New users start with default account types (Bank, Credit card, Cash, E-wallet, T
 - **An import replaces all of your data.** Your existing accounts, categories, transactions and budgets are deleted and replaced by the file's contents. It is never merged, so importing the same file twice gives the same result. Deleting and inserting happen in one database transaction: if the import fails, your old data is left untouched.
 - Every imported row belongs to the signed-in user; any user id in the file is ignored and record ids are regenerated, so the same backup can be imported into different accounts. Other users' data is never affected.
 - **Download export (JSON)** on the same page produces a file in the same format (format version 2), which can be imported again.
-- Reimbursement statuses are **To claim → Submitting → Claimed**. Version 1 files (such as the bundled backup) used `to_claim / claimed / reimbursed`; on import they are mapped `claimed → submitting` and `reimbursed → claimed`. Only Claimed reimbursements stop counting as outstanding on the dashboard.
+- Reimbursement statuses are **To claim → Submitting → Claimed**, or **Denied** when a claim is rejected (denied items no longer count as outstanding). Version 1 files (such as the bundled backup) used `to_claim / claimed / reimbursed`; on import they are mapped `claimed → submitting` and `reimbursed → claimed`. Only Claimed reimbursements stop counting as outstanding on the dashboard.
 
 ## Deploying to Vercel
 

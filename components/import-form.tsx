@@ -1,7 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { UploadIcon } from 'lucide-react';
+import { UploadIcon, TriangleAlertIcon, CircleXIcon } from 'lucide-react';
 import { previewImportAction, commitImportAction } from '@/app/actions/import';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -111,8 +111,8 @@ export function ImportForm({ existing }: { existing: Existing }) {
       {preview && (
         <div className="space-y-2 rounded-md bg-muted p-3 text-sm">
           <p>File contains — Accounts: {preview.counts.accounts} · Categories: {preview.counts.categories} · Transactions: {preview.counts.transactions} · Budgets: {preview.counts.budgets}</p>
-          {preview.warnings.map((w, i) => <p key={i} className="text-amber-600 dark:text-amber-400">⚠ {w}</p>)}
-          {preview.errors.map((e, i) => <p key={i} className="text-destructive">✕ {e}</p>)}
+          {preview.warnings.map((w, i) => <p key={i} className="flex gap-2 text-amber-600 dark:text-amber-400"><TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />{w}</p>)}
+          {preview.errors.map((e, i) => <p key={i} className="flex gap-2 text-destructive"><CircleXIcon aria-hidden className="mt-0.5 size-4 shrink-0" />{e}</p>)}
           {preview.errors.length === 0 && (
             <>
               {hasExistingData && (

@@ -1,18 +1,24 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { accountTypes, categories } from '@/db/schema';
-import type { AccountColor } from '@/lib/account-appearance';
 
-type TypePreset = { key: string; name: string; icon: string; color: AccountColor };
+type TypePreset = { key: string; name: string; icon: string };
 
 /** Starter account types given to new users. */
 export const DEFAULT_ACCOUNT_TYPES: TypePreset[] = [
-  { key: 'bank', name: 'Bank', icon: '🏦', color: 'blue' },
-  { key: 'credit', name: 'Credit card', icon: '💳', color: 'violet' },
-  { key: 'cash', name: 'Cash', icon: '💵', color: 'emerald' },
-  { key: 'wallet', name: 'E-wallet', icon: '👛', color: 'amber' },
-  { key: 'travel', name: 'Travel card', icon: '✈️', color: 'sky' },
+  { key: 'bank', name: 'Bank', icon: 'landmark' },
+  { key: 'credit', name: 'Credit card', icon: 'credit-card' },
+  { key: 'cash', name: 'Cash', icon: 'banknote' },
+  { key: 'wallet', name: 'E-wallet', icon: 'wallet' },
+  { key: 'travel', name: 'Travel card', icon: 'plane' },
 ];
+
+/** Bank and Cash always exist for every user and can't be edited or deleted. */
+export const PROTECTED_ACCOUNT_TYPES = DEFAULT_ACCOUNT_TYPES.filter((t) => t.key === 'bank' || t.key === 'cash');
+
+export function isProtectedAccountType(name: string) {
+  return PROTECTED_ACCOUNT_TYPES.some((t) => t.name.toLowerCase() === name.trim().toLowerCase());
+}
 
 /**
  * Built-in type keys used by version 1/2 backup files ("bank", "credit", …) and the type each
@@ -21,31 +27,31 @@ export const DEFAULT_ACCOUNT_TYPES: TypePreset[] = [
  */
 export const LEGACY_ACCOUNT_TYPES: TypePreset[] = [
   ...DEFAULT_ACCOUNT_TYPES,
-  { key: 'grant', name: 'Grant', icon: '🎓', color: 'teal' },
+  { key: 'grant', name: 'Grant', icon: 'graduation-cap' },
 ];
 
 export const DEFAULT_CATEGORIES: { name: string; type: 'expense' | 'income' | 'transfer'; icon: string }[] = [
-  { type: 'expense', name: 'Grocery', icon: '🛒' },
-  { type: 'expense', name: 'Food / Cafe', icon: '☕' },
-  { type: 'expense', name: 'House Renting', icon: '🏠' },
-  { type: 'expense', name: 'Electricity & Internet', icon: '💡' },
-  { type: 'expense', name: 'Transportation', icon: '🚆' },
-  { type: 'expense', name: 'Travel', icon: '✈️' },
-  { type: 'expense', name: 'Shopping', icon: '🛍️' },
-  { type: 'expense', name: 'Health', icon: '💊' },
-  { type: 'expense', name: 'Entertainment', icon: '🎬' },
-  { type: 'expense', name: 'Education', icon: '🎓' },
-  { type: 'expense', name: 'Others', icon: '📦' },
-  { type: 'income', name: 'Salary', icon: '💼' },
-  { type: 'income', name: 'Personal Savings', icon: '🐷' },
-  { type: 'income', name: 'Refund', icon: '↩️' },
-  { type: 'income', name: 'Gift', icon: '🎁' },
-  { type: 'income', name: 'Other Income', icon: '➕' },
-  { type: 'transfer', name: 'Bank Transfer', icon: '🔁' },
-  { type: 'transfer', name: 'Cash Withdrawal', icon: '🏧' },
-  { type: 'transfer', name: 'Wallet Top-up', icon: '📲' },
-  { type: 'transfer', name: 'Currency Exchange', icon: '💱' },
-  { type: 'transfer', name: 'Move to Saving', icon: '🏦' },
+  { type: 'expense', name: 'Grocery', icon: 'shopping-cart' },
+  { type: 'expense', name: 'Food / Cafe', icon: 'coffee' },
+  { type: 'expense', name: 'House Renting', icon: 'house' },
+  { type: 'expense', name: 'Electricity & Internet', icon: 'lightbulb' },
+  { type: 'expense', name: 'Transportation', icon: 'train' },
+  { type: 'expense', name: 'Travel', icon: 'plane' },
+  { type: 'expense', name: 'Shopping', icon: 'shopping-bag' },
+  { type: 'expense', name: 'Health', icon: 'pill' },
+  { type: 'expense', name: 'Entertainment', icon: 'film' },
+  { type: 'expense', name: 'Education', icon: 'graduation-cap' },
+  { type: 'expense', name: 'Others', icon: 'package' },
+  { type: 'income', name: 'Salary', icon: 'briefcase' },
+  { type: 'income', name: 'Personal Savings', icon: 'piggy-bank' },
+  { type: 'income', name: 'Refund', icon: 'undo' },
+  { type: 'income', name: 'Gift', icon: 'gift' },
+  { type: 'income', name: 'Other Income', icon: 'plus' },
+  { type: 'transfer', name: 'Bank Transfer', icon: 'repeat' },
+  { type: 'transfer', name: 'Cash Withdrawal', icon: 'banknote' },
+  { type: 'transfer', name: 'Wallet Top-up', icon: 'smartphone' },
+  { type: 'transfer', name: 'Currency Exchange', icon: 'exchange' },
+  { type: 'transfer', name: 'Move to Saving', icon: 'landmark' },
 ];
 
 type Executor = Pick<typeof db, 'select' | 'insert'>;
@@ -57,7 +63,7 @@ type Executor = Pick<typeof db, 'select' | 'insert'>;
 export async function seedUserDefaults(userId: string, executor: Executor = db) {
   const [existingType] = await executor.select({ id: accountTypes.id }).from(accountTypes).where(eq(accountTypes.userId, userId)).limit(1);
   if (!existingType) {
-    await executor.insert(accountTypes).values(DEFAULT_ACCOUNT_TYPES.map(({ name, icon, color }) => ({ userId, name, icon, color })));
+    await executor.insert(accountTypes).values(DEFAULT_ACCOUNT_TYPES.map(({ name, icon }) => ({ userId, name, icon })));
   }
   const [existingCategory] = await executor.select({ id: categories.id }).from(categories).where(eq(categories.userId, userId)).limit(1);
   if (!existingCategory) {

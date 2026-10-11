@@ -64,6 +64,27 @@
       "when": 1791695747763,
       "tag": "0008_rich_jubilee",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791703291678,
+      "tag": "0009_emoji_icons_to_names",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791704693686,
+      "tag": "0010_ordinary_nocturne",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791707375452,
+      "tag": "0011_striped_switch",
+      "breakpoints": true
     }
   ]
 }

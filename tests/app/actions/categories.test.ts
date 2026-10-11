@@ -22,13 +22,13 @@ afterAll(async () => {
 
 describe('category actions', () => {
   it('creates and lists a category scoped to the user', async () => {
-    await createCategory({ name: 'Groceries', type: 'expense', icon: '🛒' });
+    await createCategory({ name: 'Groceries', type: 'expense', icon: 'shopping-cart' });
     const list = await listCategories();
     expect(list.some((c) => c.name === 'Groceries')).toBe(true);
   });
 
   it('deleting a category nulls out categoryId on historical transactions instead of failing', async () => {
-    const category = await createCategory({ name: 'Rent', type: 'expense', icon: '🏠' });
+    const category = await createCategory({ name: 'Rent', type: 'expense', icon: 'house' });
     await db.insert(transactions).values({
       userId: user.id, details: 'Rent payment', type: 'expense', payDate: '2026-09-01',
       categoryId: category.id, amount: '10.00', currency: 'USD',
@@ -41,9 +41,9 @@ describe('category actions', () => {
   });
 
   it('edits name and icon', async () => {
-    const cat = await createCategory({ name: 'Rent', type: 'expense', icon: '🏠' });
-    const updated = await updateCategory(cat.id, { name: 'Housing', icon: '🏡' });
-    expect(updated).toMatchObject({ name: 'Housing', icon: '🏡' });
+    const cat = await createCategory({ name: 'Rent', type: 'expense', icon: 'house' });
+    const updated = await updateCategory(cat.id, { name: 'Housing', icon: 'lightbulb' });
+    expect(updated).toMatchObject({ name: 'Housing', icon: 'lightbulb' });
   });
 
   it('allows changing the type of an unused category', async () => {
@@ -68,5 +68,10 @@ describe('category actions', () => {
     await createCategory({ name: 'apple', type: 'income' });
     await createCategory({ name: 'Uni Fee', type: 'expense' });
     expect((await listCategories()).map((c) => c.name)).toEqual(['apple', 'Bank Transfer', 'Uni Fee', 'Zoo']);
+  });
+
+  it('only accepts icons from the icon set', async () => {
+    await expect(createCategory({ name: 'Emoji', type: 'expense', icon: '🛒' as never })).rejects.toThrow();
+    await expect(createCategory({ name: 'Unknown', type: 'expense', icon: 'not-an-icon' as never })).rejects.toThrow();
   });
 });

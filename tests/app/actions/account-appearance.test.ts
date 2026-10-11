@@ -26,8 +26,8 @@ describe('account colour and icon', () => {
   });
 
   it('saves a chosen colour and icon', async () => {
-    const acc = await createAccount({ name: 'Piggy', currency: 'THB', startingBalance: '0', color: 'pink', icon: '🐷' });
-    expect(acc).toMatchObject({ color: 'pink', icon: '🐷' });
+    const acc = await createAccount({ name: 'Piggy', currency: 'THB', startingBalance: '0', color: 'pink', icon: 'piggy-bank' });
+    expect(acc).toMatchObject({ color: 'pink', icon: 'piggy-bank' });
   });
 
   it('rejects a colour outside the palette', async () => {
@@ -37,7 +37,21 @@ describe('account colour and icon', () => {
 
   it('edits name, colour, icon, starting balance and note without touching other fields', async () => {
     const acc = await createAccount({ name: 'Old', currency: 'USD', startingBalance: '1.00' });
-    const updated = await updateAccount(acc.id, { name: 'New', color: 'teal', icon: '🏛️', startingBalance: '2.50', note: 'joint' });
-    expect(updated).toMatchObject({ name: 'New', color: 'teal', icon: '🏛️', startingBalance: '2.50', note: 'joint', currency: 'USD' });
+    const updated = await updateAccount(acc.id, { name: 'New', color: 'teal', icon: 'building', startingBalance: '2.50', note: 'joint' });
+    expect(updated).toMatchObject({ name: 'New', color: 'teal', icon: 'building', startingBalance: '2.50', note: 'joint', currency: 'USD' });
+  });
+
+  it('offers the wider colour palette, each with literal swatch/tile/bar classes', async () => {
+    for (const key of ['yellow', 'lime', 'green', 'cyan', 'purple', 'fuchsia', 'rose', 'stone', 'zinc']) {
+      expect(Object.keys(ACCOUNT_COLORS)).toContain(key);
+    }
+    expect(Object.keys(ACCOUNT_COLORS).length).toBeGreaterThanOrEqual(20);
+    for (const [key, c] of Object.entries(ACCOUNT_COLORS)) {
+      expect(c.swatch).toBe(`bg-${key}-500`);
+      expect(c.bar).toBe(`bg-${key}-500`);
+      expect(c.tile).toContain(`bg-${key}-500/15`);
+    }
+    const acc = await createAccount({ name: 'Rosy', currency: 'USD', startingBalance: '0', color: 'rose' });
+    expect(acc.color).toBe('rose');
   });
 });

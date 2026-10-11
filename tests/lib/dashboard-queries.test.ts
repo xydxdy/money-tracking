@@ -66,13 +66,14 @@ describe('getDashboardData', () => {
     expect(data.spendingByCategory).toHaveLength(2);
   });
 
-  it('counts to-claim and submitting reimbursements as outstanding, but not claimed ones', async () => {
+  it('counts to-claim and submitting reimbursements as outstanding, but not claimed or denied ones', async () => {
     const [u] = await db.insert(users).values({ email: 'dash-reimb@example.com', passwordHash: 'x' }).returning();
     const [acc] = await db.insert(accounts).values({ userId: u.id, name: 'A', currency: 'USD', startingBalance: '0' }).returning();
     await db.insert(transactions).values([
       { userId: u.id, details: 'a', type: 'expense', payDate: '2026-09-02', fromAccountId: acc.id, amount: '1.00', currency: 'USD', reimbursable: true, reimbursementStatus: 'to_claim' },
       { userId: u.id, details: 'b', type: 'expense', payDate: '2026-09-02', fromAccountId: acc.id, amount: '10.00', currency: 'USD', reimbursable: true, reimbursementStatus: 'submitting' },
       { userId: u.id, details: 'c', type: 'expense', payDate: '2026-09-02', fromAccountId: acc.id, amount: '100.00', currency: 'USD', reimbursable: true, reimbursementStatus: 'claimed' },
+      { userId: u.id, details: 'd', type: 'expense', payDate: '2026-09-02', fromAccountId: acc.id, amount: '1000.00', currency: 'USD', reimbursable: true, reimbursementStatus: 'denied' },
     ]);
     const data = await getDashboardData(u.id, '2026-09');
     expect(data.reimbursableCents['USD']).toBe(1100);

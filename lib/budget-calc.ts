@@ -35,7 +35,10 @@ export async function calculateBudgetProgress(userId: string, month: string) {
     const percentUsed = plannedCents === 0 ? 0 : (spentCents / plannedCents) * 100;
     return {
       budget, category, plannedCents, spentCents, remainingCents, percentUsed,
-      transactions: budgetTransactions.map((t) => ({ id: t.id, details: t.details, payDate: t.payDate, amount: t.amount, currency: t.currency })),
+      transactions: budgetTransactions.map((t) => ({
+        id: t.id, details: t.details, payDate: t.payDate, amount: t.amount, currency: t.currency,
+        fromAccountId: t.fromAccountId, counterparty: t.counterparty,
+      })),
     };
   });
 }

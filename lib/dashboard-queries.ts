@@ -60,7 +60,8 @@ export async function getDashboardData(userId: string, month: string): Promise<D
     }
     // Reimbursable status is independent of income/expense/transfer type, matching the original
     // (pre-currency-fix) behavior of filtering on `reimbursable` alone.
-    if (t.reimbursable && t.reimbursementStatus !== 'claimed') {
+    // Outstanding: still to claim or submitted. Claimed (paid back) and denied (rejected) don't count.
+    if (t.reimbursable && t.reimbursementStatus !== 'claimed' && t.reimbursementStatus !== 'denied') {
       addToCurrencyBucket(reimbursableCents, t.currency, cents);
     }
   }

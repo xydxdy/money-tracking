@@ -9,6 +9,7 @@ import { getUserAccount } from '@/lib/authorization';
 import { calculateAccountBalance } from '@/lib/balances';
 import { ACCOUNT_COLOR_KEYS, FALLBACK_APPEARANCE } from '@/lib/account-appearance';
 import { accountTypes } from '@/db/schema';
+import { iconName } from '@/lib/icon-schema';
 
 const accountInput = z.object({
   name: z.string().min(1),
@@ -17,7 +18,7 @@ const accountInput = z.object({
   startingBalance: z.string().regex(/^-?\d+(\.\d{1,2})?$/),
   note: z.string().optional(),
   color: z.enum(ACCOUNT_COLOR_KEYS).optional(),
-  icon: z.string().trim().min(1).max(16).optional(),
+  icon: iconName,
 });
 
 async function ownedAccountType(userId: string, accountTypeId: string | null | undefined) {
@@ -32,8 +33,8 @@ export async function createAccount(input: z.infer<typeof accountInput>) {
   const user = await getCurrentUser();
   const data = accountInput.parse(input);
   const type = await ownedAccountType(user.id, data.accountTypeId);
-  // A new account takes its type's icon and colour unless the user chose their own.
-  const defaults = { icon: type?.icon ?? FALLBACK_APPEARANCE.icon, color: type?.color ?? FALLBACK_APPEARANCE.color };
+  // A new account takes its type's icon (and the default colour) unless the user chose their own.
+  const defaults = { icon: type?.icon ?? FALLBACK_APPEARANCE.icon, color: FALLBACK_APPEARANCE.color };
   const [account] = await db.insert(accounts).values({
     ...data, color: data.color ?? defaults.color, icon: data.icon ?? defaults.icon, userId: user.id,
   }).returning();

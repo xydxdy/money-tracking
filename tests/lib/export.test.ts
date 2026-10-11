@@ -73,7 +73,7 @@ describe('exportUserData', () => {
     const [user] = await db.insert(users).values({ email: 'export-appearance@example.com', passwordHash: 'x' }).returning();
     await commitImport({ ...fixture, version: 2, accounts: [{ ...fixture.accounts[0], color: 'violet', icon: '🏦' }], transactions: [], budgets: [] }, user.id);
     const exported = JSON.parse(JSON.stringify(await exportUserData(user.id)));
-    expect(exported.accounts[0]).toMatchObject({ color: 'violet', icon: '🏦' });
+    expect(exported.accounts[0]).toMatchObject({ color: 'violet', icon: 'landmark' }); // emoji in the file -> icon name
   });
 
   it('exports each account type by name', async () => {

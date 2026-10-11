@@ -1,0 +1,1 @@
+ALTER TYPE "public"."reimbursement_status" ADD VALUE 'denied';

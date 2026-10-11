@@ -1,0 +1,1 @@
+ALTER TABLE "account_types" DROP COLUMN "color";

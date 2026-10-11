@@ -4,18 +4,9 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
-export function ConfirmButton({
-  label,
-  description,
-  onConfirm,
-  confirmLabel = 'Confirm',
-  variant = 'destructive',
-  redirectTo,
-  confirmText,
-}: {
-  label: string;
+type ConfirmOptions = {
   description: string;
   onConfirm: () => Promise<void>;
   confirmLabel?: string;
@@ -23,21 +14,30 @@ export function ConfirmButton({
   redirectTo?: string;
   /** When set, the user must type this exact text before Confirm is enabled. */
   confirmText?: string;
-}) {
+};
+
+/** The "Are you sure?" dialog on its own, opened by whoever controls `open` (e.g. a menu item). */
+export function ConfirmDialog({
+  open, onOpenChange, description, onConfirm, confirmLabel = 'Confirm', variant = 'destructive', redirectTo, confirmText,
+}: ConfirmOptions & { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [typed, setTyped] = useState('');
   const confirmed = confirmText === undefined || typed === confirmText;
+
+  function close() {
+    onOpenChange(false);
+    setError(null);
+    setTyped('');
+  }
 
   async function handleConfirm() {
     setPending(true);
     setError(null);
     try {
       await onConfirm();
-      setOpen(false);
-      setTyped('');
+      close();
       if (redirectTo) router.push(redirectTo);
       router.refresh();
     } catch {
@@ -48,8 +48,7 @@ export function ConfirmButton({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) { setError(null); setTyped(''); } }}>
-      <DialogTrigger render={<Button type="button" variant={variant} size="sm" />}>{label}</DialogTrigger>
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
       <DialogContent>
         <DialogHeader><DialogTitle>Are you sure?</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground">{description}</p>
@@ -70,12 +69,23 @@ export function ConfirmButton({
         )}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={pending}>Cancel</Button>
+          <Button type="button" variant="outline" onClick={close} disabled={pending}>Cancel</Button>
           <Button type="button" variant={variant === 'destructive' ? 'destructive' : 'default'} disabled={pending || !confirmed} onClick={handleConfirm}>
             {pending ? 'Working…' : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A button that asks "Are you sure?" (optionally requiring typed text) before running `onConfirm`. */
+export function ConfirmButton({ label, ...options }: ConfirmOptions & { label: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button type="button" variant={options.variant ?? 'destructive'} size="sm" onClick={() => setOpen(true)}>{label}</Button>
+      <ConfirmDialog {...options} open={open} onOpenChange={setOpen} />
+    </>
   );
 }

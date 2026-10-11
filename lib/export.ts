@@ -1,6 +1,7 @@
 import { db } from '@/db/client';
 import { accounts, accountTypes, categories, transactions, budgets } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { toIconName } from '@/lib/icons';
 
 export async function exportUserData(userId: string) {
   const [userAccounts, userCategories, userTransactions, userBudgets, userTypes] = await Promise.all([
@@ -19,9 +20,9 @@ export async function exportUserData(userId: string) {
       // The account type's name (omitted for an account without a type).
       id: a.id, name: a.name, type: typeName(a.accountTypeId), currency: a.currency,
       startingBalance: Number(a.startingBalance), note: a.note ?? undefined, archived: a.archived,
-      color: a.color ?? undefined, icon: a.icon ?? undefined,
+      color: a.color ?? undefined, icon: toIconName(a.icon) ?? undefined,
     })),
-    categories: userCategories.map((c) => ({ id: c.id, name: c.name, type: c.type, icon: c.icon ?? undefined })),
+    categories: userCategories.map((c) => ({ id: c.id, name: c.name, type: c.type, icon: toIconName(c.icon) ?? undefined })),
     transactions: userTransactions.map((t) => ({
       id: t.id, details: t.details, type: t.type, categoryId: t.categoryId,
       payDate: t.payDate, fromAccountId: t.fromAccountId, toAccountId: t.toAccountId,

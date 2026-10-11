@@ -8,7 +8,7 @@ export const transactionTypeEnum = pgEnum('transaction_type', ['expense', 'incom
 // move money into toAccountId.
 export const loanKindEnum = pgEnum('loan_kind', ['lend', 'borrow', 'repayment_in', 'repayment_out']);
 export const transactionStatusEnum = pgEnum('transaction_status', ['completed', 'pending', 'cancelled']);
-export const reimbursementStatusEnum = pgEnum('reimbursement_status', ['to_claim', 'submitting', 'claimed']);
+export const reimbursementStatusEnum = pgEnum('reimbursement_status', ['to_claim', 'submitting', 'claimed', 'denied']);
 
 // Time-ordered UUIDv7 ids: newer rows sort after older ones (see lib/uuid.ts).
 const genId = () => uuidv7();
@@ -26,14 +26,13 @@ export const users = pgTable('users', {
   ...timestamps,
 });
 
-// Each user's own list of account types (Bank, Credit card, …). Icon/colour are the defaults
-// given to new accounts of that type.
+// Each user's own list of account types (Bank, Credit card, …). The icon is the default given to
+// new accounts of that type.
 export const accountTypes = pgTable('account_types', {
   id: text('id').primaryKey().$defaultFn(genId),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   icon: text('icon'),
-  color: text('color'),
   ...timestamps,
 }, (t) => ({
   userIdx: index('account_types_user_id_idx').on(t.userId),

@@ -144,3 +144,10 @@ describe('listTransactionsPage', () => {
     expect(res.rows.length).toBeGreaterThan(0);
   });
 });
+
+describe('denied status filter', () => {
+  it('filters reimbursements by the denied status', async () => {
+    const txn = await createTransaction({ details: 'Rejected claim', type: 'expense', payDate: '2026-07-01', fromAccountId: usd.id, amount: '9.00', reimbursable: true, reimbursementStatus: 'denied' });
+    expect((await listReimbursables({ status: 'denied' })).map((t) => t.id)).toEqual([txn.id]);
+  });
+});

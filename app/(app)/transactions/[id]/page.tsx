@@ -1,19 +1,20 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ExternalLinkIcon, PencilIcon } from 'lucide-react';
+import { ExternalLinkIcon, PencilIcon, HandCoinsIcon } from 'lucide-react';
+import { IconLabel } from '@/components/app-icon';
 import { getTransaction, deleteTransaction } from '@/app/actions/transactions';
 import { listAccounts } from '@/app/actions/accounts';
 import { listCategories } from '@/app/actions/categories';
 import { formatMoney, toCents } from '@/lib/money';
 import { formatDate } from '@/lib/dates';
 import { safeHref } from '@/lib/link';
+import { REIMBURSEMENT_LABELS } from '@/lib/reimbursements';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmButton } from '@/components/confirm-button';
-import { AccountAvatar } from '@/components/account-avatar';
+import { TransactionIcon } from '@/components/transaction-icon';
 import { LOAN_LABELS } from '@/components/transaction-row';
 
-const STATUS_LABELS = { to_claim: 'To claim', submitting: 'Submitting', claimed: 'Claimed' } as const;
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -41,7 +42,6 @@ export default async function TransactionDetailPage({ params }: { params: Promis
   const toCurrency = accounts.find((a) => a.id === txn.toAccountId)?.currency;
   const href = safeHref(txn.link);
   const txnId = txn.id;
-  const mainAccount = accounts.find((a) => a.id === (txn.fromAccountId ?? txn.toAccountId));
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -49,7 +49,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
         <div className="min-w-0">
           <Link href="/transactions" className="text-sm text-muted-foreground hover:underline">← Transactions</Link>
           <div className="mt-2 flex items-center gap-3">
-            <AccountAvatar icon={mainAccount?.icon} color={mainAccount?.color} size="lg" />
+            <TransactionIcon categoryIcon={category?.icon ?? null} type={txn.type} viaPerson={!!txn.counterparty} size="lg" />
             <div className="min-w-0">
               <h1 className="truncate text-2xl font-semibold tracking-tight">{txn.details}</h1>
               <p className="text-muted-foreground capitalize">{formatDate(txn.payDate)} · {txn.type}</p>
@@ -77,7 +77,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
         </Field>
         {txn.type !== 'loan' && txn.counterparty && (
           <Field label={txn.type === 'expense' ? 'Paid by' : 'Received by'}>
-            🤝 <span className="font-medium">{txn.counterparty}</span>{' '}
+            <HandCoinsIcon className="mr-1 inline size-4 text-amber-600 dark:text-amber-400" /><span className="font-medium">{txn.counterparty}</span>{' '}
             <Link href="/loans" className="text-primary hover:underline">· see balance</Link>
             {txn.loanClosedAt && <Badge variant="secondary" className="ml-2">Closed {formatDate(txn.loanClosedAt.toISOString().slice(0, 10))}</Badge>}
           </Field>
@@ -85,14 +85,14 @@ export default async function TransactionDetailPage({ params }: { params: Promis
         {txn.fromAccountId && <Field label="From account">{accountName(txn.fromAccountId)}</Field>}
         {txn.toAccountId && <Field label="To account">{accountName(txn.toAccountId)}</Field>}
         {txn.type === 'loan' && txn.loanKind && (
-          <Field label="Loan">🤝 {LOAN_LABELS[txn.loanKind]} <span className="font-medium">{txn.counterparty}</span>{' '}
+          <Field label="Loan"><HandCoinsIcon className="mr-1 inline size-4 text-amber-600 dark:text-amber-400" />{LOAN_LABELS[txn.loanKind]} <span className="font-medium">{txn.counterparty}</span>{' '}
             <Link href={`/loans`} className="text-primary hover:underline">· see balance</Link>
             {txn.loanClosedAt && <Badge variant="secondary" className="ml-2">Closed {formatDate(txn.loanClosedAt.toISOString().slice(0, 10))}</Badge>}</Field>
         )}
-        {txn.type !== 'loan' && <Field label="Category">{category ? `${category.icon ?? ''} ${category.name}`.trim() : '—'}</Field>}
+        {txn.type !== 'loan' && <Field label="Category">{category ? <IconLabel icon={category.icon}>{category.name}</IconLabel> : '—'}</Field>}
         {txn.type !== 'loan' && <Field label="Reimbursable">
           {txn.reimbursable
-            ? <Badge variant="secondary">{STATUS_LABELS[txn.reimbursementStatus ?? 'to_claim']}</Badge>
+            ? <Badge variant="secondary">{REIMBURSEMENT_LABELS[txn.reimbursementStatus ?? 'to_claim']}</Badge>
             : 'No'}
         </Field>}
         <Field label="Link">

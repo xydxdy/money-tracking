@@ -13,7 +13,8 @@ export const backupAccountSchema = z.object({
   // Some older backups omit it for accounts that were never archived.
   archived: z.boolean().default(false),
   color: z.enum(ACCOUNT_COLOR_KEYS).optional(),
-  icon: z.string().trim().min(1).max(16).optional(),
+  // An icon name, or an emoji in older backups (translated on import; unknown ones are dropped).
+  icon: z.string().trim().max(40).optional(),
 });
 
 export const backupCategorySchema = z.object({
@@ -49,7 +50,7 @@ export const backupTransactionSchema = z.object({
   currency: z.string(),
   status: z.enum(['completed', 'pending', 'cancelled']),
   reimbursable: z.boolean(),
-  reimbursementStatus: z.enum(['to_claim', 'submitting', 'claimed']).optional(),
+  reimbursementStatus: z.enum(['to_claim', 'submitting', 'claimed', 'denied']).optional(),
   receipt: backupReceiptSchema.optional(),
   link: httpUrl.optional(),
   note: z.string().optional(),

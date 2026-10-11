@@ -1,7 +1,7 @@
 import { listCategories, deleteCategory } from '@/app/actions/categories';
 import { CreateCategoryDialog } from '@/components/create-dialogs';
-import { ConfirmButton } from '@/components/confirm-button';
-import { CategoryEditDialog } from '@/components/category-edit-dialog';
+import { CategoryIcon } from '@/components/app-icon';
+import { CategoryActions } from '@/components/category-actions';
 import { Badge } from '@/components/ui/badge';
 import type { Category } from '@/db/schema';
 
@@ -11,18 +11,12 @@ function CategoryGrid({ categories }: { categories: Category[] }) {
       {categories.map((c) => (
         <div key={c.id} className="flex items-center justify-between gap-2 rounded-xl border bg-card p-3 shadow-xs">
           <span className="flex min-w-0 items-center gap-3">
-            <span aria-hidden className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-lg">{c.icon || '🏷️'}</span>
+            <CategoryIcon name={c.icon} />
             <span className="truncate font-medium">{c.name}</span>
           </span>
           <div className="flex shrink-0 items-center gap-1">
             {c.archived && <Badge variant="secondary">Archived</Badge>}
-            <CategoryEditDialog category={c} />
-            <ConfirmButton
-              label="Delete"
-              description={`Delete "${c.name}"? Historical transactions keep their data but lose this category, and its budgets are removed.`}
-              confirmText={c.name}
-              onConfirm={async () => { 'use server'; await deleteCategory(c.id); }}
-            />
+            <CategoryActions category={c} onDelete={async () => { 'use server'; await deleteCategory(c.id); }} />
           </div>
         </div>
       ))}

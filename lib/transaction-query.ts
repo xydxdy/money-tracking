@@ -22,7 +22,7 @@ const filterSchema = z.object({
   type: z.enum(['expense', 'income', 'transfer', 'loan']).optional().catch(undefined),
   accountId: z.string().min(1).optional().catch(undefined),
   categoryId: z.string().min(1).optional().catch(undefined),
-  status: z.enum(['to_claim', 'submitting', 'claimed']).optional().catch(undefined),
+  status: z.enum(['to_claim', 'submitting', 'claimed', 'denied']).optional().catch(undefined),
   // `YYYY-MM` or `all`. Without it (and without from/to) the list shows all time.
   month: z.union([z.literal('all'), z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)]).optional().catch(undefined),
   from: isoDate.optional().catch(undefined),

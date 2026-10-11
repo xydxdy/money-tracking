@@ -128,7 +128,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           {budgets.length > 0 ? (
             <div className="space-y-4">
               {summarizeBudgets(budgets).map((sum) => <BudgetSummaryCard key={sum.currency} s={sum} compact />)}
-              {budgets.map((p) => <BudgetRow key={p.budget.id} progress={p} compact />)}
+              {budgets.map((p) => <BudgetRow key={p.budget.id} progress={p} compact accounts={accounts} />)}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No {currency ? `${currency} ` : ''}budgets set for this month.</p>

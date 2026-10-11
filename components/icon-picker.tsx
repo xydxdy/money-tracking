@@ -4,14 +4,17 @@ import { ChevronDownIcon, ShuffleIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CATEGORY_ICON_GROUPS } from '@/lib/category-icons';
+import { AppIcon } from '@/components/app-icon';
+import { toIconName } from '@/lib/icons';
 
-/** Emoji field: pick one from the dropdown grid or shuffle for a random one. Submitted under `name`. */
+/** Icon field: pick one from the dropdown grid or shuffle for a random one. Submitted under `name`. */
 type IconGroup = { label: string; icons: readonly string[] };
 
 export function IconPicker({ id, name, defaultValue, groups = CATEGORY_ICON_GROUPS, onChange }: {
   id?: string; name: string; defaultValue: string; groups?: readonly IconGroup[]; onChange?: (icon: string) => void;
 }) {
-  const [value, setValue] = useState(defaultValue);
+  // Stored values may be emoji from older data; the picker always works in icon names.
+  const [value, setValue] = useState(toIconName(defaultValue) ?? groups[0]?.icons[0] ?? 'tag');
   const [open, setOpen] = useState(false);
   const all = groups.flatMap((g) => g.icons);
   function choose(icon: string) {
@@ -27,7 +30,7 @@ export function IconPicker({ id, name, defaultValue, groups = CATEGORY_ICON_GROU
     <div className="flex gap-2">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger render={<Button id={id} type="button" variant="outline" className="w-16 justify-between px-2" aria-label="Choose icon" />}>
-          <span className="text-lg leading-none">{value || '·'}</span>
+          <AppIcon icon={value} className="size-5" />
           <ChevronDownIcon className="size-3.5 text-muted-foreground" />
         </PopoverTrigger>
         <PopoverContent align="start" className="max-h-80 w-72 overflow-y-auto">
@@ -39,12 +42,13 @@ export function IconPicker({ id, name, defaultValue, groups = CATEGORY_ICON_GROU
                   <button
                     key={icon}
                     type="button"
-                    aria-label={`Use ${icon}`}
+                    aria-label={`Use ${icon.replace(/-/g, ' ')} icon`}
+                    title={icon.replace(/-/g, ' ')}
                     aria-pressed={icon === value}
                     onClick={() => { choose(icon); setOpen(false); }}
-                    className={`rounded-md p-1.5 text-xl leading-none hover:bg-accent ${icon === value ? 'bg-accent ring-1 ring-ring' : ''}`}
+                    className={`inline-flex items-center justify-center rounded-md p-2 hover:bg-accent ${icon === value ? 'bg-accent text-primary ring-1 ring-ring' : 'text-muted-foreground'}`}
                   >
-                    {icon}
+                    <AppIcon icon={icon} className="size-5" />
                   </button>
                 ))}
               </div>

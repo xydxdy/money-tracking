@@ -178,7 +178,7 @@ export default async function LoansPage({ searchParams }: { searchParams: Promis
                     </div>
                     <div className="divide-y">
                       {g.transactions.map((t) => (
-                        <TransactionRow key={t.id} t={t} accounts={accounts} categories={categories} muted={!!g.closedAt} />
+                        <TransactionRow key={t.id} t={t} accounts={accounts} categories={categories} muted={!!g.closedAt} personContext />
                       ))}
                     </div>
                   </div>

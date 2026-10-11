@@ -9,32 +9,24 @@ import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordi
 import { CSS } from '@dnd-kit/utilities';
 import { reorderAccounts } from '@/app/actions/accounts';
 import { Badge } from '@/components/ui/badge';
+import { AppIcon } from '@/components/app-icon';
 import { AccountAvatar } from '@/components/account-avatar';
 import { accountColorClasses } from '@/lib/account-appearance';
 
 export type AccountCard = {
-  id: string; name: string; type: string; currency: string; archived: boolean; balanceLabel: string;
+  id: string; name: string; type: string; typeIcon: string | null; currency: string; archived: boolean; balanceLabel: string;
   color: string | null; icon: string | null; negative: boolean;
+  /** Net change this month, formatted with a sign (e.g. "+$320.00"). */
+  monthChangeLabel: string;
+  monthChangeCents: number;
 };
 
-function SortableCard({ account }: { account: AccountCard }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: account.id });
+/** The inside of an account card; `handle` is the drag handle when the card is sortable. */
+export function AccountCardView({ account, handle }: { account: AccountCard; handle?: React.ReactNode }) {
+  const change = account.monthChangeCents;
   return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`relative overflow-hidden rounded-xl border bg-card shadow-xs transition-shadow hover:shadow-md ${account.archived ? 'opacity-60' : ''} ${isDragging ? 'z-10 shadow-lg' : ''}`}
-    >
-      <button
-        ref={setActivatorNodeRef}
-        type="button"
-        aria-label={`Drag to reorder ${account.name}`}
-        className="absolute top-3 right-2 cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-accent active:cursor-grabbing"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVerticalIcon className="size-4" />
-      </button>
+    <>
+      {handle}
       <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${accountColorClasses(account.color).bar}`} />
       <Link href={`/accounts/${account.id}`} className="block p-4 pr-10">
         <div className="flex items-center gap-3">
@@ -44,11 +36,56 @@ function SortableCard({ account }: { account: AccountCard }) {
               <span className="truncate font-medium">{account.name}</span>
               {account.archived && <Badge variant="secondary">Archived</Badge>}
             </div>
-            <p className="text-sm text-muted-foreground">{account.type} · {account.currency}</p>
+            <p className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
+              <AppIcon icon={account.typeIcon} fallback="landmark" className="size-3.5 shrink-0" />
+              <span className="truncate">{account.type} · {account.currency}</span>
+            </p>
           </div>
         </div>
         <p className={`mt-4 text-2xl font-semibold tracking-tight tabular-nums ${account.negative ? 'text-destructive' : ''}`}>{account.balanceLabel}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          This month:{' '}
+          <span className={`font-medium tabular-nums ${change > 0 ? 'text-positive' : change < 0 ? 'text-destructive' : ''}`}>
+            {change === 0 ? 'no change' : account.monthChangeLabel}
+          </span>
+        </p>
       </Link>
+    </>
+  );
+}
+
+/** A plain (non-draggable) account card, e.g. for archived accounts. */
+export function AccountCardStatic({ account }: { account: AccountCard }) {
+  return (
+    <div className="relative overflow-hidden rounded-xl border bg-card opacity-70 shadow-xs transition hover:opacity-100 hover:shadow-md">
+      <AccountCardView account={account} />
+    </div>
+  );
+}
+
+function SortableCard({ account }: { account: AccountCard }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: account.id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`relative overflow-hidden rounded-xl border bg-card shadow-xs transition-shadow hover:shadow-md ${account.archived ? 'opacity-60' : ''} ${isDragging ? 'z-10 shadow-lg' : ''}`}
+    >
+      <AccountCardView
+        account={account}
+        handle={
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
+            aria-label={`Drag to reorder ${account.name}`}
+            className="absolute top-3 right-2 z-10 cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-accent active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVerticalIcon className="size-4" />
+          </button>
+        }
+      />
     </div>
   );
 }

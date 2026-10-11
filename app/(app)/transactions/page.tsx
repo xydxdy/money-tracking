@@ -4,6 +4,8 @@ import { Pagination } from '@/components/pagination';
 import { listAccounts } from '@/app/actions/accounts';
 import { listCategories } from '@/app/actions/categories';
 import { formatDate, formatMonth, shiftMonth } from '@/lib/dates';
+import { formatMoney } from '@/lib/money';
+import { netByCurrency } from '@/lib/day-totals';
 import { parseTransactionFilters, resolveDateRange, TRANSACTION_SORTS } from '@/lib/transaction-query';
 import { PlusIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -74,8 +76,8 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
         sorts={TRANSACTION_SORTS}
         selects={[
           { key: 'type', label: 'Types', options: [{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }, { value: 'transfer', label: 'Transfer' }, { value: 'loan', label: 'Loan' }] },
-          { key: 'accountId', label: 'Accounts', options: accounts.map((a) => ({ value: a.id, label: `${a.icon ?? ''} ${a.name} (${a.currency})`.trim() })) },
-          { key: 'categoryId', label: 'Categories', options: categories.map((c) => ({ value: c.id, label: c.icon ? `${c.icon} ${c.name}` : c.name })) },
+          { key: 'accountId', label: 'Accounts', options: accounts.map((a) => ({ value: a.id, label: `${a.name} (${a.currency})` })) },
+          { key: 'categoryId', label: 'Categories', options: categories.map((c) => ({ value: c.id, label: c.name })) },
         ]}
       />
       {transactions.length === 0 ? (
@@ -83,17 +85,32 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
           {hasFilters ? 'No transactions match these filters.' : range.month === 'all' ? 'No transactions yet. Add your first one.' : `No transactions in ${heading}.`}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-card shadow-xs">
-          {groups.map((g, i) => (
-            <div key={`${g.date}-${i}`}>
-              {g.date && (
-                <p className="border-b bg-muted/40 px-4 py-1.5 text-xs font-medium text-muted-foreground">{formatDate(g.date)}</p>
-              )}
-              <div className="divide-y border-b last:border-b-0">
-                {g.rows.map((t) => <TransactionRow key={t.id} t={t} accounts={accounts} categories={categories} showDate={!byDate} />)}
-              </div>
-            </div>
-          ))}
+        <div className="divide-y overflow-hidden rounded-xl border bg-card shadow-xs">
+          {groups.map((g, i) => {
+            // The day's income minus expenses, per currency (transfers and loans don't count).
+            const net = Object.entries(netByCurrency(g.rows));
+            return (
+              <section key={`${g.date}-${i}`} aria-label={g.date ? formatDate(g.date) : undefined}>
+                {g.date && (
+                  <div className="flex items-center justify-between gap-3 border-b bg-muted/40 px-4 py-1.5 text-xs font-medium text-muted-foreground">
+                    <span>{formatDate(g.date)}</span>
+                    {net.length > 0 && (
+                      <span className="flex flex-wrap justify-end gap-x-3 tabular-nums">
+                        {net.map(([currency, cents]) => (
+                          <span key={currency} className={cents > 0 ? 'text-positive' : cents < 0 ? 'text-destructive' : ''}>
+                            {cents > 0 ? '+' : ''}{formatMoney(cents, currency)}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="divide-y">
+                  {g.rows.map((t) => <TransactionRow key={t.id} t={t} accounts={accounts} categories={categories} showDate={!byDate} />)}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
       <Pagination page={result.page} pageCount={result.pageCount} hrefFor={pageHref} summary={pageSummary} />

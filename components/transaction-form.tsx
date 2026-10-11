@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { ConfirmButton } from '@/components/confirm-button';
 import { DatePicker, todayIso } from '@/components/date-picker';
 import { CurrencySelect } from '@/components/currency-select';
+import { IconLabel } from '@/components/app-icon';
 import type { Account, Category, Transaction } from '@/db/schema';
 
 const TYPES = ['expense', 'income', 'transfer', 'loan'] as const;
@@ -116,9 +117,9 @@ export function TransactionForm({
   // does not change how the popup's own `<SelectItem>` list is rendered.
   // Archived accounts are hidden from the pickers unless this transaction already uses one.
   const pickable = accounts.filter((a) => !a.archived || a.id === existing?.fromAccountId || a.id === existing?.toAccountId);
-  const accountItems = Object.fromEntries(pickable.map((a) => [a.id, `${a.icon ?? ''} ${a.name} (${a.currency})`.trim()]));
+  const accountItems = Object.fromEntries(pickable.map((a) => [a.id, <IconLabel key={a.id} icon={a.icon} fallback="landmark">{a.name} ({a.currency})</IconLabel>]));
   const categoryItems = Object.fromEntries(
-    relevantCategories.map((c) => [c.id, c.icon ? `${c.icon} ${c.name}` : c.name])
+    relevantCategories.map((c) => [c.id, <IconLabel key={c.id} icon={c.icon}>{c.name}</IconLabel>])
   );
 
   async function onSubmit(formData: FormData) {
@@ -263,7 +264,7 @@ export function TransactionForm({
           <Label htmlFor="fromAccountId">{isLoan ? 'From account (money leaves)' : 'From account'}</Label>
           <Select name="fromAccountId" items={accountItems} value={fromAccountId || null} onValueChange={onFromAccountChange}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Select account" /></SelectTrigger>
-            <SelectContent alignItemWithTrigger={false} className="max-h-[min(18rem,var(--available-height))]">{pickable.map((a) => <SelectItem key={a.id} value={a.id}>{a.icon} {a.name} ({a.currency})</SelectItem>)}</SelectContent>
+            <SelectContent alignItemWithTrigger={false} className="max-h-[min(18rem,var(--available-height))]">{pickable.map((a) => <SelectItem key={a.id} value={a.id}><IconLabel icon={a.icon} fallback="landmark">{a.name} ({a.currency})</IconLabel></SelectItem>)}</SelectContent>
           </Select>
         </div>
       )}
@@ -275,7 +276,7 @@ export function TransactionForm({
         <Select key={type} name="categoryId" items={categoryItems} defaultValue={categoryDefault}>
           <SelectTrigger className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger>
           <SelectContent alignItemWithTrigger={false} className="max-h-[min(18rem,var(--available-height))]">
-            {relevantCategories.map((c) => <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>)}
+            {relevantCategories.map((c) => <SelectItem key={c.id} value={c.id}><IconLabel icon={c.icon}>{c.name}</IconLabel></SelectItem>)}
           </SelectContent>
         </Select>
       </div>}
@@ -285,7 +286,7 @@ export function TransactionForm({
           <Label htmlFor="toAccountId">{isLoan ? 'To account (money arrives)' : 'To account'}</Label>
           <Select name="toAccountId" items={accountItems} value={toAccountId || null} onValueChange={onToAccountChange}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Select account" /></SelectTrigger>
-            <SelectContent alignItemWithTrigger={false} className="max-h-[min(18rem,var(--available-height))]">{pickable.map((a) => <SelectItem key={a.id} value={a.id}>{a.icon} {a.name} ({a.currency})</SelectItem>)}</SelectContent>
+            <SelectContent alignItemWithTrigger={false} className="max-h-[min(18rem,var(--available-height))]">{pickable.map((a) => <SelectItem key={a.id} value={a.id}><IconLabel icon={a.icon} fallback="landmark">{a.name} ({a.currency})</IconLabel></SelectItem>)}</SelectContent>
           </Select>
         </div>
       )}

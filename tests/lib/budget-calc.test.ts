@@ -56,4 +56,11 @@ describe('calculateBudgetProgress', () => {
     const groceriesBudget = progress.find((p) => p.category.id === groceries.id)!;
     expect(groceriesBudget.transactions.map((t) => t.details)).toEqual(['Store B', 'Store A']);
   });
+
+  it('includes each budget transaction’s account and payer for the expanded list', async () => {
+    const progress = await calculateBudgetProgress(user.id, '2026-09');
+    const t = progress.find((p) => p.category.id === groceries.id)!.transactions[0];
+    expect(t).toHaveProperty('fromAccountId');
+    expect(t).toHaveProperty('counterparty');
+  });
 });

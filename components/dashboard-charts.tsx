@@ -2,6 +2,7 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { formatMoney } from '@/lib/money';
 import { formatMonth } from '@/lib/dates';
+import { AppIcon } from '@/components/app-icon';
 
 // Each call renders a single currency's series — the page extracts one currency's numbers out of
 // getDashboardData's per-currency Records before calling these, so no chart ever mixes amounts
@@ -60,7 +61,7 @@ export function SpendingBars({ data, currency }: { data: { name: string; icon?: 
         return (
           <li key={d.name} title={`${d.name}: ${formatMoney(d.cents, currency)} (${share}%)`}>
             <div className="flex items-baseline justify-between gap-2 text-sm">
-              <span className="truncate">{d.icon} {d.name}</span>
+              <span className="flex min-w-0 items-center gap-2"><AppIcon icon={d.icon} className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{d.name}</span></span>
               <span className="shrink-0 tabular-nums">
                 {formatMoney(d.cents, currency)} <span className="text-muted-foreground">· {share}%</span>
               </span>

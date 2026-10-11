@@ -5,11 +5,12 @@ import { categories, transactions } from '@/db/schema';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/session';
 import { getUserCategory } from '@/lib/authorization';
+import { iconName } from '@/lib/icon-schema';
 
 const categoryInput = z.object({
   name: z.string().min(1),
   type: z.enum(['expense', 'income', 'transfer']),
-  icon: z.string().optional(),
+  icon: iconName,
 });
 
 const categoryUpdateInput = categoryInput.partial();

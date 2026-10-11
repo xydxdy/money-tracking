@@ -15,9 +15,9 @@ export async function listReimbursables(filters?: Pick<TransactionFilters, 'q' |
     .orderBy(...transactionOrder(f.sort));
 }
 
-export async function setReimbursementStatus(id: string, status: 'to_claim' | 'submitting' | 'claimed') {
+export async function setReimbursementStatus(id: string, status: 'to_claim' | 'submitting' | 'claimed' | 'denied') {
   const user = await getCurrentUser();
-  status = z.enum(['to_claim', 'submitting', 'claimed']).parse(status);
+  status = z.enum(['to_claim', 'submitting', 'claimed', 'denied']).parse(status);
   const existing = await getUserTransaction(id, user.id);
   if (!existing) throw new Error('NOT_FOUND');
   const [updated] = await db.update(transactions).set({ reimbursementStatus: status, updatedAt: new Date() })

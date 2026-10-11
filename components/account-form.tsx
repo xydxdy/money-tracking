@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { IconPicker } from '@/components/icon-picker';
 import { ColorPicker } from '@/components/color-picker';
 import { CurrencySelect } from '@/components/currency-select';
+import { IconLabel } from '@/components/app-icon';
 import { AccountAvatar } from '@/components/account-avatar';
 import { ACCOUNT_ICONS, FALLBACK_APPEARANCE, type AccountColor } from '@/lib/account-appearance';
 import { currencySymbol } from '@/lib/currencies';
@@ -17,14 +18,14 @@ import type { Account, AccountType } from '@/db/schema';
 const ICON_GROUPS = [{ label: 'Icons', icons: ACCOUNT_ICONS }];
 
 function appearanceOf(type: AccountType | undefined) {
-  return { icon: type?.icon ?? FALLBACK_APPEARANCE.icon, color: (type?.color ?? FALLBACK_APPEARANCE.color) as AccountColor };
+  return { icon: type?.icon ?? FALLBACK_APPEARANCE.icon, color: FALLBACK_APPEARANCE.color };
 }
 
 export function AccountForm({ existing, types, onSaved }: { existing?: Account; types: AccountType[]; onSaved?: () => void }) {
   const router = useRouter();
   const [typeId, setTypeId] = useState<string>(existing ? (existing.accountTypeId ?? '') : (types[0]?.id ?? ''));
   const typeOf = (id: string) => types.find((t) => t.id === id);
-  const typeItems = { '': 'No type', ...Object.fromEntries(types.map((t) => [t.id, `${t.icon ?? ''} ${t.name}`.trim()])) };
+  const typeItems = { '': 'No type', ...Object.fromEntries(types.map((t) => [t.id, <IconLabel key={t.id} icon={t.icon} fallback="landmark">{t.name}</IconLabel>])) };
   const initial = existing
     ? { icon: existing.icon ?? FALLBACK_APPEARANCE.icon, color: (existing.color ?? FALLBACK_APPEARANCE.color) as AccountColor }
     : appearanceOf(typeOf(typeId));
@@ -95,7 +96,7 @@ export function AccountForm({ existing, types, onSaved }: { existing?: Account; 
           <Select value={typeId} onValueChange={(v) => onTypeChange(v ?? '')} items={typeItems}>
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {types.map((t) => <SelectItem key={t.id} value={t.id}>{t.icon} {t.name}</SelectItem>)}
+              {types.map((t) => <SelectItem key={t.id} value={t.id}><IconLabel icon={t.icon} fallback="landmark">{t.name}</IconLabel></SelectItem>)}
               <SelectItem value="">No type</SelectItem>
             </SelectContent>
           </Select>

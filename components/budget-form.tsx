@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Budget, Category } from '@/db/schema';
-import { CurrencySelect } from '@/components/currency-select';
+import { currencySymbol } from '@/lib/currencies';
+import { IconLabel } from '@/components/app-icon';
 
 function describeError(err: unknown): string {
   if (err instanceof Error) {
@@ -25,15 +26,23 @@ function describeError(err: unknown): string {
   return 'Could not save budget. Check the planned amount and currency.';
 }
 
-export function BudgetForm({ month, categories, existing, onSaved, defaultCurrency = 'USD' }: {
-  month: string; categories: Category[]; existing?: Budget; onSaved?: () => void; defaultCurrency?: string;
+export function BudgetForm({ month, categories, existing, onSaved, defaultCurrency, defaultCategoryId, currencies }: {
+  month: string; categories: Category[]; existing?: Budget; onSaved?: () => void; defaultCurrency?: string; defaultCategoryId?: string;
+  /** The user's account currencies (in account order); budgets can only use these. */
+  currencies: string[];
 }) {
   const router = useRouter();
   const budgetableCategories = categories.filter(
     (c) => (c.type === 'expense' && !c.archived) || c.id === existing?.categoryId
   );
-  const [categoryId, setCategoryId] = useState(existing?.categoryId ?? budgetableCategories[0]?.id ?? '');
+  const [categoryId, setCategoryId] = useState(existing?.categoryId ?? defaultCategoryId ?? budgetableCategories[0]?.id ?? '');
   const idPrefix = existing ? `budget-${existing.id}` : 'budget-new';
+  // An existing budget may use a currency no account has any more; keep it selectable.
+  const currencyOptions = existing && !currencies.includes(existing.currency) ? [...currencies, existing.currency] : currencies;
+  const [currency, setCurrency] = useState(
+    existing?.currency ?? (defaultCurrency && currencyOptions.includes(defaultCurrency) ? defaultCurrency : currencyOptions[0] ?? ''),
+  );
+  const currencyItems = Object.fromEntries(currencyOptions.map((c) => [c, `${currencySymbol(c)} ${c}`]));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +50,7 @@ export function BudgetForm({ month, categories, existing, onSaved, defaultCurren
   // icon+name — without `items` (a value->label map) the trigger renders the
   // raw id instead of a readable label. Same fix as components/transaction-form.tsx.
   const categoryItems = Object.fromEntries(
-    budgetableCategories.map((c) => [c.id, c.icon ? `${c.icon} ${c.name}` : c.name])
+    budgetableCategories.map((c) => [c.id, <IconLabel key={c.id} icon={c.icon}>{c.name}</IconLabel>])
   );
 
   async function onSubmit(formData: FormData) {
@@ -55,7 +64,7 @@ export function BudgetForm({ month, categories, existing, onSaved, defaultCurren
       const input = {
         month,
         categoryId,
-        currency: String(formData.get('currency')).toUpperCase(),
+        currency,
         plannedAmount: String(formData.get('plannedAmount')),
       };
       if (existing) await updateBudget(existing.id, input);
@@ -78,7 +87,7 @@ export function BudgetForm({ month, categories, existing, onSaved, defaultCurren
             <SelectTrigger id={`${idPrefix}-category`} className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger>
             <SelectContent>
               {budgetableCategories.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>
+                <SelectItem key={c.id} value={c.id}><IconLabel icon={c.icon}>{c.name}</IconLabel></SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -95,11 +104,20 @@ export function BudgetForm({ month, categories, existing, onSaved, defaultCurren
         </div>
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-currency`}>Currency</Label>
-          <CurrencySelect id={`${idPrefix}-currency`} name="currency" defaultValue={existing?.currency ?? defaultCurrency} className="sm:w-48" />
+          {currencyOptions.length > 0 ? (
+            <Select value={currency} onValueChange={(v) => setCurrency(v ?? '')} items={currencyItems}>
+              <SelectTrigger id={`${idPrefix}-currency`} className="w-full sm:w-36"><SelectValue /></SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}>
+                {currencyOptions.map((c) => <SelectItem key={c} value={c}>{currencySymbol(c)} {c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-sm text-muted-foreground">Add an account first — budgets use your accounts’ currencies.</p>
+          )}
         </div>
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" className="w-full sm:w-auto" disabled={pending || !categoryId}>
+      <Button type="submit" className="w-full sm:w-auto" disabled={pending || !categoryId || !currency}>
         {pending ? 'Saving…' : existing ? 'Save changes' : 'Add budget'}
       </Button>
     </form>
