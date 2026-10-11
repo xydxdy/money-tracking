@@ -57,18 +57,21 @@ const transactionUpdateInput = z.object({
   type: z.enum(['expense', 'income', 'transfer']).optional(),
   payDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   amount: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
-  toAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  // `null` explicitly clears an optional column (e.g. the user blanked the note); absent means unchanged.
+  toAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).nullable().optional(),
   currency: z.string().length(3).optional(),
-  categoryId: z.string().optional(),
+  categoryId: z.string().nullable().optional(),
   fromAccountId: z.string().optional(),
   toAccountId: z.string().optional(),
   reimbursable: z.boolean().optional(),
   reimbursementStatus: z.enum(['to_claim', 'claimed', 'reimbursed']).optional(),
-  note: z.string().optional(),
+  note: z.string().nullable().optional(),
   receipt: z.any().optional(),
 });
 
-async function assertOwnedReferences(userId: string, data: { fromAccountId?: string; toAccountId?: string; categoryId?: string }) {
+const CLEARABLE_FIELDS = ['toAmount', 'categoryId', 'note'] as const;
+
+async function assertOwnedReferences(userId: string, data: { fromAccountId?: string; toAccountId?: string; categoryId?: string | null }) {
   if (data.fromAccountId && !(await getUserAccount(data.fromAccountId, userId))) throw new Error('FORBIDDEN');
   if (data.toAccountId && !(await getUserAccount(data.toAccountId, userId))) throw new Error('FORBIDDEN');
   if (data.categoryId && !(await getUserCategory(data.categoryId, userId))) throw new Error('FORBIDDEN');
@@ -109,9 +112,11 @@ export async function updateTransaction(id: string, input: z.input<typeof transa
   // matching branches (lib/balances.ts), silently dropping it from every account's balance total.
   // `data` is spread after the sanitized existing row so any field the caller actually provided
   // wins; fields the caller omitted keep the existing row's (sanitized) value.
-  const merged = { ...nullsToUndefined(existing), ...data };
+  const merged = { ...nullsToUndefined(existing), ...nullsToUndefined(data) };
   const validated = transactionInput.parse(merged);
-  const [updated] = await db.update(transactions).set({ ...validated, updatedAt: new Date() })
+  // Drizzle skips `undefined` keys in `.set()`, so a cleared field must be written as an explicit NULL.
+  const cleared = Object.fromEntries(CLEARABLE_FIELDS.filter((k) => data[k] === null).map((k) => [k, null]));
+  const [updated] = await db.update(transactions).set({ ...validated, ...cleared, updatedAt: new Date() })
     .where(and(eq(transactions.id, id), eq(transactions.userId, user.id))).returning();
   return updated;
 }

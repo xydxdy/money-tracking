@@ -19,6 +19,8 @@ beforeAll(async () => {
     { userId: user.id, details: 'Refund', type: 'income', payDate: '2026-09-16', categoryId: groceries.id, amount: '10.00', currency: 'USD' },
     // different month, should not count
     { userId: user.id, details: 'Store C', type: 'expense', payDate: '2026-08-01', categoryId: groceries.id, amount: '999.00', currency: 'USD' },
+    // same category and month but a different currency than the USD budget: must not count
+    { userId: user.id, details: 'Market (THB)', type: 'expense', payDate: '2026-09-20', categoryId: groceries.id, amount: '500.00', currency: 'THB' },
   ]);
 });
 

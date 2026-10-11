@@ -26,7 +26,8 @@ export async function calculateBudgetProgress(userId: string, month: string) {
 
   return rows.map(({ budgets: budget, categories: category }) => {
     const spentCents = monthTransactions
-      .filter((t) => t.categoryId === category.id)
+      // Only the budget's own currency counts — never sum across currencies.
+      .filter((t) => t.categoryId === category.id && t.currency === budget.currency)
       .reduce((sum, t) => sum + toCents(t.amount), 0);
     const plannedCents = toCents(budget.plannedAmount);
     const remainingCents = plannedCents - spentCents;

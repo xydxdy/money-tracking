@@ -86,7 +86,14 @@ export function TransactionForm({
     } as Parameters<typeof createTransaction>[0];
 
     try {
-      if (existing) await updateTransaction(existing.id, payload);
+      // On edit, a blanked optional field must be sent as null so the server clears it;
+      // undefined would mean "leave unchanged".
+      if (existing) await updateTransaction(existing.id, {
+        ...payload,
+        categoryId: payload.categoryId ?? null,
+        toAmount: payload.toAmount ?? null,
+        note: payload.note ?? null,
+      });
       else await createTransaction(payload);
       router.push('/transactions');
       router.refresh();

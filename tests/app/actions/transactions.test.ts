@@ -107,4 +107,14 @@ describe('updateTransaction', () => {
 
     await expect(updateTransaction(transfer.id, { toAccountId: accountA.id })).rejects.toThrow();
   });
+
+  it('clears note and category when an update sets them to null', async () => {
+    const txn = await createTransaction({
+      details: 'With extras', type: 'expense', payDate: '2026-09-10',
+      fromAccountId: accountA.id, categoryId: categoryA.id, amount: '3.00', currency: 'USD', note: 'remove me',
+    });
+    const updated = await updateTransaction(txn.id, { note: null, categoryId: null });
+    expect(updated.note).toBeNull();
+    expect(updated.categoryId).toBeNull();
+  });
 });
