@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "accounts": [
+    { "id": "fx-acc-1", "name": "Checking", "type": "bank", "currency": "USD", "startingBalance": 100, "archived": false },
+    { "id": "fx-acc-2", "name": "Credit", "type": "credit", "currency": "USD", "startingBalance": 0, "archived": false }
+  ],
+  "categories": [
+    { "id": "c_food", "name": "Food", "type": "expense", "icon": "🍔", "noBudget": false },
+    { "id": "c_transfer", "name": "Transfer", "type": "transfer", "icon": "🔁", "noBudget": true }
+  ],
+  "transactions": [
+    { "id": "fx-txn-1", "details": "Lunch", "type": "expense", "categoryId": "c_food", "payDate": "2026-09-01", "fromAccountId": "fx-acc-1", "toAccountId": null, "amount": 12.5, "currency": "USD", "status": "completed", "reimbursable": false, "createdAt": "2026-09-01T00:00:00.000+00:00", "updatedAt": "2026-09-01T00:00:00.000+00:00" },
+    { "id": "fx-txn-2", "details": "Salary", "type": "income", "categoryId": null, "payDate": "2026-09-01", "fromAccountId": null, "toAccountId": "fx-acc-1", "amount": 1000, "currency": "USD", "status": "completed", "reimbursable": false, "createdAt": "2026-09-01T00:00:00.000+00:00", "updatedAt": "2026-09-01T00:00:00.000+00:00" },
+    { "id": "fx-txn-3", "details": "Pay off card", "type": "transfer", "categoryId": "c_transfer", "payDate": "2026-09-02", "fromAccountId": "fx-acc-1", "toAccountId": "fx-acc-missing", "amount": 50, "currency": "USD", "status": "completed", "reimbursable": false, "createdAt": "2026-09-02T00:00:00.000+00:00", "updatedAt": "2026-09-02T00:00:00.000+00:00" }
+  ],
+  "budgets": [
+    { "id": "fx-budget-1", "month": "2026-09", "categoryId": "c_food", "currency": "USD", "plannedAmount": 200 }
+  ]
+}
