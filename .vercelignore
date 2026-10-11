@@ -1,0 +1,10 @@
+# Never upload personal data or local secrets to Vercel builds
+/finance-backup-*.json
+.env
+.env.local
+.env.*.local
+.superpowers
+.worktrees
+.agents
+.claude
+skills-lock.json

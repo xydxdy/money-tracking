@@ -29,3 +29,5 @@ npm-debug.log*
 
 # Personal finance backups dropped in the project root (keep out of git)
 /finance-backup-*.json
+.env*
+!.env.example
