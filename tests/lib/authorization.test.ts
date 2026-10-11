@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { db } from '@/db/client';
 import { users, accounts, categories } from '@/db/schema';
-import { getUserAccount, getUserCategory } from '@/lib/authorization';
+import { getUserAccount } from '@/lib/authorization';
 
 let userA: { id: string }, userB: { id: string };
 let accountA: { id: string };
