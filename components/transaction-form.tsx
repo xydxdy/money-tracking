@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import type { Account, Category, Transaction } from '@/db/schema';
 
 const TYPES = ['expense', 'income', 'transfer'] as const;
@@ -42,6 +43,7 @@ export function TransactionForm({
 }: { accounts: Account[]; categories: Category[]; existing?: Transaction }) {
   const router = useRouter();
   const [type, setType] = useState<(typeof TYPES)[number]>(existing?.type ?? 'expense');
+  const [reimbursable, setReimbursable] = useState(existing?.reimbursable ?? false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -80,6 +82,7 @@ export function TransactionForm({
       toAccountId: String(formData.get('toAccountId') || '') || undefined,
       toAmount: String(formData.get('toAmount') || '') || undefined,
       note: String(formData.get('note') || '') || undefined,
+      reimbursable,
     } as Parameters<typeof createTransaction>[0];
 
     try {
@@ -187,6 +190,11 @@ export function TransactionForm({
         <Label htmlFor="note">Note</Label>
         <Input id="note" name="note" defaultValue={existing?.note ?? undefined} />
       </div>
+
+      <Label className="flex items-center gap-2">
+        <Switch checked={reimbursable} onCheckedChange={setReimbursable} />
+        Reimbursable
+      </Label>
 
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="flex items-center gap-2">
