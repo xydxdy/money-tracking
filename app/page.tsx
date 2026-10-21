@@ -1,8 +1,7 @@
-export default function Home() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-2 p-8">
-      <h1 className="text-2xl font-semibold">Money Tracking</h1>
-      <p className="text-muted-foreground">Project scaffold is up and running.</p>
-    </main>
-  );
+import { redirect } from 'next/navigation';
+import { auth } from '@/lib/auth';
+
+export default async function Home() {
+  const session = await auth();
+  redirect(session?.user?.id ? '/dashboard' : '/login');
 }

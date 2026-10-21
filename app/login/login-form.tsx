@@ -17,6 +17,10 @@ export function LoginForm() {
         <Label htmlFor="password">Password</Label>
         <Input id="password" name="password" type="password" required autoComplete="current-password" />
       </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="remember" className="size-4 rounded border-input accent-primary" />
+        Remember me
+      </label>
       {state?.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}
       <Button type="submit" className="w-full" disabled={pending}>{pending ? 'Signing in…' : 'Sign in'}</Button>
     </form>
