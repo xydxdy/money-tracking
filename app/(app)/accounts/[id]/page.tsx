@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PlusIcon } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { and, or, eq, desc } from 'drizzle-orm';
 import { getAccountWithBalance, setAccountArchived, listAccounts } from '@/app/actions/accounts';
@@ -9,6 +10,7 @@ import { EditAccountDialog } from '@/components/create-dialogs';
 import { AccountAvatar } from '@/components/account-avatar';
 import { TransactionRow } from '@/components/transaction-row';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { formatMoney } from '@/lib/money';
 import { accountColorClasses } from '@/lib/account-appearance';
 import { db } from '@/db/client';
@@ -53,6 +55,9 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {!account.archived && (
+              <Button render={<Link href={`/transactions/new?account=${id}`} />} nativeButton={false}><PlusIcon /> Add transaction</Button>
+            )}
             <EditAccountDialog account={account} types={types} />
             <ConfirmButton
               variant="outline"

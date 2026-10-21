@@ -51,13 +51,18 @@ function describeError(err: unknown): string {
 }
 
 export function TransactionForm({
-  accounts, categories, existing, people = [], initialType = 'expense',
-}: { accounts: Account[]; categories: Category[]; existing?: Transaction; people?: string[]; initialType?: (typeof TYPES)[number] }) {
+  accounts, categories, existing, people = [], initialType = 'expense', initialAccountId, returnTo,
+}: {
+  accounts: Account[]; categories: Category[]; existing?: Transaction; people?: string[]; initialType?: (typeof TYPES)[number];
+  /** Pre-selects this account (e.g. when adding from an account's page); `returnTo` is where to go after saving. */
+  initialAccountId?: string; returnTo?: string;
+}) {
   const router = useRouter();
   const [type, setType] = useState<(typeof TYPES)[number]>(existing?.type ?? initialType);
   const [reimbursable, setReimbursable] = useState(existing?.reimbursable ?? false);
-  const [fromAccountId, setFromAccountId] = useState(existing?.fromAccountId ?? '');
-  const [toAccountId, setToAccountId] = useState(existing?.toAccountId ?? '');
+  // A pre-selected account fills both sides; only the side the chosen type shows gets submitted.
+  const [fromAccountId, setFromAccountId] = useState(existing ? existing.fromAccountId ?? '' : initialAccountId ?? '');
+  const [toAccountId, setToAccountId] = useState(existing ? existing.toAccountId ?? '' : initialAccountId ?? '');
   const [loanKind, setLoanKind] = useState<LoanKind>(existing?.loanKind ?? 'lend');
   const isLoan = type === 'loan';
   // An expense can be paid by a person instead of from an account (and an income received by a
@@ -79,6 +84,12 @@ export function TransactionForm({
     if (nextIn && !loanMovesIn && fromAccountId && !toAccountId) { setToAccountId(fromAccountId); setFromAccountId(''); }
     if (!nextIn && loanMovesIn && toAccountId && !fromAccountId) { setFromAccountId(toAccountId); setToAccountId(''); }
     setLoanKind(next);
+  }
+
+  // A transfer can't go from an account to itself, so drop the duplicate pre-selected destination.
+  function onTypeChange(next: (typeof TYPES)[number]) {
+    if (next === 'transfer' && fromAccountId && fromAccountId === toAccountId) setToAccountId('');
+    setType(next);
   }
 
   const currencyOf = (id: string) => accounts.find((a) => a.id === id)?.currency;
@@ -161,7 +172,7 @@ export function TransactionForm({
         ...(viaPerson ? (type === 'expense' ? { fromAccountId: null } : { toAccountId: null }) : {}),
       });
       else await createTransaction(payload);
-      router.push(existing ? `/transactions/${existing.id}` : isLoan ? '/loans' : '/transactions');
+      router.push(existing ? `/transactions/${existing.id}` : returnTo ?? (isLoan ? '/loans' : '/transactions'));
       router.refresh();
     } catch (err) {
       setError(describeError(err));
@@ -179,7 +190,7 @@ export function TransactionForm({
             type="button"
             role="radio"
             aria-checked={type === t}
-            onClick={() => setType(t)}
+            onClick={() => onTypeChange(t)}
             className={`rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors ${type === t
               ? `bg-card shadow-xs ${t === 'expense' ? 'text-destructive' : t === 'income' ? 'text-positive' : t === 'loan' ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`
               : 'text-muted-foreground hover:text-foreground'}`}
