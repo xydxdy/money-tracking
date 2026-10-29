@@ -1,15 +1,16 @@
 import { db } from '@/db/client';
-import { accounts, accountTypes, categories, transactions, budgets } from '@/db/schema';
+import { accounts, accountGroups, accountTypes, categories, transactions, budgets } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { toIconName } from '@/lib/icons';
 
 export async function exportUserData(userId: string) {
-  const [userAccounts, userCategories, userTransactions, userBudgets, userTypes] = await Promise.all([
+  const [userAccounts, userCategories, userTransactions, userBudgets, userTypes, userGroups] = await Promise.all([
     db.select().from(accounts).where(eq(accounts.userId, userId)),
     db.select().from(categories).where(eq(categories.userId, userId)),
     db.select().from(transactions).where(eq(transactions.userId, userId)),
     db.select().from(budgets).where(eq(budgets.userId, userId)),
     db.select().from(accountTypes).where(eq(accountTypes.userId, userId)),
+    db.select().from(accountGroups).where(eq(accountGroups.userId, userId)),
   ]);
   const typeName = (id: string | null) => userTypes.find((t) => t.id === id)?.name;
 
@@ -19,8 +20,13 @@ export async function exportUserData(userId: string) {
     accounts: userAccounts.map((a) => ({
       // The account type's name (omitted for an account without a type).
       id: a.id, name: a.name, type: typeName(a.accountTypeId), currency: a.currency,
-      startingBalance: Number(a.startingBalance), note: a.note ?? undefined, archived: a.archived,
-      color: a.color ?? undefined, icon: toIconName(a.icon) ?? undefined,
+      startingBalance: Number(a.startingBalance), note: a.note ?? undefined, archived: a.archived, favorite: a.favorite,
+      color: a.color ?? undefined, icon: toIconName(a.icon) ?? undefined, groupId: a.groupId ?? undefined,
+      position: a.position ?? undefined,
+    })),
+    groups: userGroups.map((g) => ({
+      id: g.id, name: g.name, color: g.color ?? undefined, icon: toIconName(g.icon) ?? undefined,
+      note: g.note ?? undefined, position: g.position ?? undefined,
     })),
     categories: userCategories.map((c) => ({ id: c.id, name: c.name, type: c.type, icon: toIconName(c.icon) ?? undefined })),
     transactions: userTransactions.map((t) => ({

@@ -1,19 +1,33 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  ArrowDownLeftIcon, ArrowLeftRightIcon, ArrowUpDownIcon, ArrowUpRightIcon, ChevronRightIcon, CircleCheckIcon, HandCoinsIcon,
+} from 'lucide-react';
 import { createTransaction, updateTransaction, deleteTransaction } from '@/app/actions/transactions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { ConfirmButton } from '@/components/confirm-button';
 import { DatePicker, todayIso } from '@/components/date-picker';
 import { CurrencySelect } from '@/components/currency-select';
-import { IconLabel } from '@/components/app-icon';
-import type { Account, Category, Transaction } from '@/db/schema';
+import { AccountPicker } from '@/components/account-picker';
+import { CategoryChips } from '@/components/category-chips';
+import type { Account, AccountGroup, Category, Transaction } from '@/db/schema';
+import { sortByGroup } from '@/lib/account-groups';
+import { currencySymbol } from '@/lib/currencies';
+import { formatDate } from '@/lib/dates';
+import { formatMoney, toCents } from '@/lib/money';
 
 const TYPES = ['expense', 'income', 'transfer', 'loan'] as const;
+type TxType = (typeof TYPES)[number];
+const TYPE_STYLE: Record<TxType, { label: string; icon: typeof ArrowUpRightIcon; text: string; tint: string }> = {
+  expense: { label: 'Expense', icon: ArrowUpRightIcon, text: 'text-destructive', tint: 'from-destructive/10' },
+  income: { label: 'Income', icon: ArrowDownLeftIcon, text: 'text-positive', tint: 'from-positive/10' },
+  transfer: { label: 'Transfer', icon: ArrowLeftRightIcon, text: 'text-primary', tint: 'from-primary/10' },
+  loan: { label: 'Loan', icon: HandCoinsIcon, text: 'text-amber-600 dark:text-amber-400', tint: 'from-amber-500/10' },
+};
 const LOAN_KINDS = [
   { value: 'lend', label: 'I lent', hint: 'Money leaves your account to them' },
   { value: 'borrow', label: 'I borrowed', hint: 'Money arrives in your account from them' },
@@ -50,16 +64,64 @@ function describeError(err: unknown): string {
   return 'Could not save transaction. Check that the account/category are valid.';
 }
 
+
+const AMOUNT_RE = /^\d+(\.\d{1,2})?$/;
+
+function shiftDays(iso: string, days: number) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(y, m - 1, d + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function Section({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
+  return (
+    <section className="space-y-3 rounded-xl border bg-card p-4 shadow-xs">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium text-muted-foreground">{title}</h2>
+        {aside}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Segmented<T extends string>({ label, options, value, onChange }: {
+  label: string; options: { value: T; label: ReactNode }[]; value: T; onChange: (v: T) => void;
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="grid auto-cols-fr grid-flow-col gap-1 rounded-lg bg-muted p-1">
+      {options.map((o) => (
+        <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
+          className={`rounded-md px-3 py-1.5 text-sm transition-colors ${value === o.value ? 'bg-card font-medium shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function TransactionForm({
-  accounts, categories, existing, people = [], initialType = 'expense', initialAccountId, returnTo,
+  accounts, groups = [], balances, categories, existing, people = [], initialType = 'expense', initialAccountId, returnTo,
 }: {
-  accounts: Account[]; categories: Category[]; existing?: Transaction; people?: string[]; initialType?: (typeof TYPES)[number];
+  accounts: Account[]; groups?: AccountGroup[]; categories: Category[]; existing?: Transaction; people?: string[]; initialType?: TxType;
+  /** Current balance per account id, in cents, shown in the account pickers. */
+  balances?: Record<string, number>;
   /** Pre-selects this account (e.g. when adding from an account's page); `returnTo` is where to go after saving. */
   initialAccountId?: string; returnTo?: string;
 }) {
   const router = useRouter();
-  const [type, setType] = useState<(typeof TYPES)[number]>(existing?.type ?? initialType);
+  const amountRef = useRef<HTMLInputElement>(null);
+  const [type, setType] = useState<TxType>(existing?.type ?? initialType);
+  const [amount, setAmount] = useState(existing?.amount ?? '');
+  const [details, setDetails] = useState(existing?.details ?? '');
+  const [categoryId, setCategoryId] = useState(existing?.categoryId ?? '');
+  const [payDate, setPayDate] = useState(existing?.payDate ?? todayIso());
+  // Bumped to reset the uncontrolled date field after a quick pick, and the other uncontrolled
+  // fields after "Save & add another".
+  const [dateKey, setDateKey] = useState(0);
+  const [resetKey, setResetKey] = useState(0);
   const [reimbursable, setReimbursable] = useState(existing?.reimbursable ?? false);
+  const [moreOpen, setMoreOpen] = useState(!!(existing?.note || existing?.link || existing?.reimbursable));
   // A pre-selected account fills both sides; only the side the chosen type shows gets submitted.
   const [fromAccountId, setFromAccountId] = useState(existing ? existing.fromAccountId ?? '' : initialAccountId ?? '');
   const [toAccountId, setToAccountId] = useState(existing ? existing.toAccountId ?? '' : initialAccountId ?? '');
@@ -76,6 +138,9 @@ export function TransactionForm({
   const loanMovesIn = loanKind === 'borrow' || loanKind === 'repayment_in';
   const showFrom = (type === 'expense' && !viaPerson) || type === 'transfer' || (isLoan && !loanMovesIn);
   const showTo = (type === 'income' && !viaPerson) || type === 'transfer' || (isLoan && loanMovesIn);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   // Switching a loan between money-out (lent / repaid them) and money-in (borrowed / repaid me)
   // moves the chosen account to the other side instead of making the user pick it again.
@@ -86,10 +151,22 @@ export function TransactionForm({
     setLoanKind(next);
   }
 
-  // A transfer can't go from an account to itself, so drop the duplicate pre-selected destination.
-  function onTypeChange(next: (typeof TYPES)[number]) {
+  function onTypeChange(next: TxType) {
+    // A transfer can't go from an account to itself, so drop the duplicate pre-selected destination.
     if (next === 'transfer' && fromAccountId && fromAccountId === toAccountId) setToAccountId('');
+    // Categories belong to one type; keep the original only when switching back to it.
+    setCategoryId(existing?.type === next ? existing.categoryId ?? '' : '');
     setType(next);
+  }
+
+  function swapAccounts() {
+    setFromAccountId(toAccountId);
+    setToAccountId(fromAccountId);
+  }
+
+  function pickDate(iso: string) {
+    setPayDate(iso);
+    setDateKey((k) => k + 1);
   }
 
   const currencyOf = (id: string) => accounts.find((a) => a.id === id)?.currency;
@@ -98,54 +175,49 @@ export function TransactionForm({
   // "To amount" is the amount that lands in the destination account, so it only exists when a
   // transfer crosses currencies; for a same-currency transfer the amount is the same on both sides.
   const showToAmount = type === 'transfer' && !!fromCurrency && !!toCurrency && fromCurrency !== toCurrency;
-
   // The currency is never typed: it is the currency of the account the money leaves (or, for
   // income, arrives in). The server derives it the same way.
-  const currency = type === 'income' || (isLoan && loanMovesIn) ? toCurrency : fromCurrency;
-  const onFromAccountChange = (id: string | null) => setFromAccountId(id ?? '');
-  const onToAccountChange = (id: string | null) => setToAccountId(id ?? '');
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const currency = viaPerson ? undefined : type === 'income' || (isLoan && loanMovesIn) ? toCurrency : fromCurrency;
 
   // Every category of this transaction's type, sorted by name (from listCategories). Archived
   // ones are hidden unless this transaction already uses it.
-  const relevantCategories = categories.filter(
-    (c) => c.type === type && (!c.archived || c.id === existing?.categoryId)
-  );
-  // Once the user switches type away from the transaction's original type, the original
-  // categoryId (scoped to the original type) won't appear in `relevantCategories` — defaulting
-  // the select to it would show a value that isn't one of the rendered options.
-  const categoryDefault = existing?.type === type ? (existing?.categoryId ?? undefined) : undefined;
-
-  // This Base UI Select is documented (not a Radix carryover) to render the raw `value` in its
-  // trigger unless `items` is supplied — see node_modules/@base-ui/react/docs/react/components/select.md
-  // ("By default, the <Select.Value> component renders the raw value... Passing the items prop
-  // ... renders the matching label"). It's invisible everywhere else in this codebase because
-  // every other Select's item value already equals its own label (account "type" like 'bank',
-  // category "type" like 'expense'). Here `value` is the account/category *id* and the label is
-  // its *name*, so without `items` the trigger displays a raw UUID instead of "Checking" —
-  // confirmed live in manual QA. `items` as a value->label record fixes the trigger's text; it
-  // does not change how the popup's own `<SelectItem>` list is rendered.
+  const relevantCategories = categories.filter((c) => c.type === type && (!c.archived || c.id === existing?.categoryId));
   // Archived accounts are hidden from the pickers unless this transaction already uses one.
-  const pickable = accounts.filter((a) => !a.archived || a.id === existing?.fromAccountId || a.id === existing?.toAccountId);
-  const accountItems = Object.fromEntries(pickable.map((a) => [a.id, <IconLabel key={a.id} icon={a.icon} fallback="landmark">{a.name} ({a.currency})</IconLabel>]));
-  const categoryItems = Object.fromEntries(
-    relevantCategories.map((c) => [c.id, <IconLabel key={c.id} icon={c.icon}>{c.name}</IconLabel>])
-  );
+  // Sorted by group (in the order shown on the Accounts page), favourites first within each group.
+  const pickable = sortByGroup(
+    accounts.filter((a) => !a.archived || a.id === existing?.fromAccountId || a.id === existing?.toAccountId), groups);
+  const pickerProps = { accounts: pickable, groups, balances };
+
+  const today = todayIso();
+  const yesterday = shiftDays(today, -1);
+  const style = TYPE_STYLE[type];
+
+  // One-line recap for the save bar, e.g. "Expense · ฿120.00 from KBANK".
+  const accountName = (id: string) => accounts.find((a) => a.id === id)?.name;
+  const amountLabel = AMOUNT_RE.test(amount) && currency ? formatMoney(toCents(amount), currency) : amount || null;
+  const route = type === 'transfer'
+    ? [accountName(fromAccountId), accountName(toAccountId)].filter(Boolean).join(' → ')
+    : showFrom ? (accountName(fromAccountId) && `from ${accountName(fromAccountId)}`)
+      : showTo ? (accountName(toAccountId) && `to ${accountName(toAccountId)}`) : null;
+  const summary = [style.label, [amountLabel, route].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
 
   async function onSubmit(formData: FormData) {
     if (!formData.get('payDate')) {
       setError('Enter the date as DD/MM/YYYY.');
       return;
     }
+    if (showFrom && !fromAccountId) { setError(`Choose the account the money ${type === 'transfer' ? 'leaves' : 'comes from'}.`); return; }
+    if (showTo && !toAccountId) { setError(`Choose the account the money ${type === 'transfer' ? 'goes to' : 'arrives in'}.`); return; }
+    const addAnother = !existing && formData.get('intent') === 'another';
     setPending(true);
     setError(null);
+    setSaved(null);
     const payload = {
       type,
-      details: String(formData.get('details')),
+      details: details.trim(),
       payDate: String(formData.get('payDate')),
-      amount: String(formData.get('amount')),
-      categoryId: String(formData.get('categoryId') || '') || undefined,
+      amount: amount.trim(),
+      categoryId: isLoan ? undefined : categoryId || undefined,
       fromAccountId: String(formData.get('fromAccountId') || '') || undefined,
       toAccountId: String(formData.get('toAccountId') || '') || undefined,
       toAmount: showToAmount ? String(formData.get('toAmount') || '') || undefined : undefined,
@@ -172,6 +244,18 @@ export function TransactionForm({
         ...(viaPerson ? (type === 'expense' ? { fromAccountId: null } : { toAccountId: null }) : {}),
       });
       else await createTransaction(payload);
+      if (addAnother) {
+        // Keep the type, accounts and date; clear what's specific to the one just saved.
+        setSaved(`Saved “${payload.details}”${amountLabel ? ` · ${amountLabel}` : ''}. Add the next one.`);
+        setAmount('');
+        setDetails('');
+        setCategoryId('');
+        setReimbursable(false);
+        setResetKey((k) => k + 1);
+        router.refresh();
+        amountRef.current?.focus();
+        return;
+      }
       router.push(existing ? `/transactions/${existing.id}` : returnTo ?? (isLoan ? '/loans' : '/transactions'));
       router.refresh();
     } catch (err) {
@@ -182,173 +266,220 @@ export function TransactionForm({
   }
 
   return (
-    <form action={onSubmit} className="space-y-5 rounded-xl border bg-card p-5 shadow-xs">
-      <div role="radiogroup" aria-label="Type" className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1">
-        {TYPES.map((t) => (
-          <button
-            key={t}
-            type="button"
-            role="radio"
-            aria-checked={type === t}
-            onClick={() => onTypeChange(t)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors ${type === t
-              ? `bg-card shadow-xs ${t === 'expense' ? 'text-destructive' : t === 'income' ? 'text-positive' : t === 'loan' ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`
-              : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+    <form action={onSubmit} className="space-y-4">
+      {saved && (
+        <p role="status" className="flex items-center gap-2 rounded-xl border border-positive/30 bg-positive/10 px-4 py-2.5 text-sm text-positive">
+          <CircleCheckIcon className="size-4 shrink-0" /> {saved}
+        </p>
+      )}
 
-      <div className="space-y-2">
-        <Label htmlFor="details">Details</Label>
-        <Input id="details" name="details" defaultValue={existing?.details} required />
-      </div>
+      {/* What & how much */}
+      <section className={`space-y-5 rounded-xl border bg-gradient-to-b ${style.tint} to-card to-60% p-4 shadow-xs`}>
+        <div role="radiogroup" aria-label="Type" className="grid grid-cols-4 gap-1 rounded-lg bg-muted/80 p-1">
+          {TYPES.map((t) => {
+            const { label, icon: Icon, text } = TYPE_STYLE[t];
+            return (
+              <button key={t} type="button" role="radio" aria-checked={type === t} onClick={() => onTypeChange(t)}
+                className={`flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-xs font-medium transition-colors sm:flex-row sm:justify-center sm:gap-1.5 sm:text-sm ${type === t
+                  ? `bg-card shadow-xs ${text}` : 'text-muted-foreground hover:text-foreground'}`}>
+                <Icon className="size-4" /> {label}
+              </button>
+            );
+          })}
+        </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="link">Link (receipt URL, optional)</Label>
-        <Input id="link" name="link" type="url" inputMode="url" placeholder="https://…" defaultValue={existing?.link ?? undefined} />
-      </div>
+        <div className="space-y-1 text-center">
+          <Label htmlFor="amount" className="justify-center text-xs font-normal text-muted-foreground">
+            {showToAmount ? `Amount sent (${fromCurrency})` : 'Amount'}
+          </Label>
+          <div className="flex items-baseline justify-center gap-1.5">
+            {currency && <span className={`text-2xl font-medium ${style.text} opacity-70`}>{currencySymbol(currency)}</span>}
+            <input
+              ref={amountRef}
+              id="amount"
+              name="amount"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/,/g, ''))}
+              required
+              inputMode="decimal"
+              autoComplete="off"
+              autoFocus={!existing}
+              placeholder="0.00"
+              aria-invalid={amount !== '' && !AMOUNT_RE.test(amount)}
+              className={`field-sizing-content min-w-[4ch] max-w-full bg-transparent text-center text-5xl font-semibold tracking-tight tabular-nums outline-none placeholder:text-muted-foreground/40 aria-invalid:text-destructive ${style.text}`}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {currency ? currency : viaPerson ? 'Pick the currency below' : 'The currency comes from the account'}
+          </p>
+        </div>
 
-      {isLoan && (
-        <div className="space-y-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-          <div className="space-y-2">
-            <Label>Loan</Label>
+        {showToAmount && (
+          <div key={`to-${resetKey}`} className="mx-auto max-w-xs space-y-1 text-center">
+            <Label htmlFor="toAmount" className="justify-center text-xs font-normal text-muted-foreground">Amount received ({toCurrency})</Label>
+            <div className="flex items-baseline justify-center gap-1.5">
+              <span className="text-lg text-muted-foreground">{currencySymbol(toCurrency!)}</span>
+              <input id="toAmount" name="toAmount" defaultValue={existing?.toAmount ?? undefined} required inputMode="decimal" autoComplete="off" placeholder="0.00"
+                className="field-sizing-content min-w-[4ch] bg-transparent text-center text-2xl font-semibold tabular-nums outline-none placeholder:text-muted-foreground/40" />
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor="details" className="sr-only">Details</Label>
+          <Input id="details" name="details" value={details} onChange={(e) => setDetails(e.target.value)} required
+            placeholder={type === 'income' ? 'What is it from? e.g. Salary' : type === 'transfer' ? 'What is it for? e.g. Top up savings' : isLoan ? 'What is it for? e.g. Dinner' : 'What was it? e.g. Coffee'}
+            className="h-11 bg-background text-base" autoComplete="off" />
+        </div>
+      </section>
+
+      {/* Where the money moves */}
+      <Section title={isLoan ? 'Loan' : type === 'transfer' ? 'Accounts' : type === 'expense' ? 'Paid from' : 'Received in'}>
+        {isLoan && (
+          <div key={`loan-${resetKey}`} className="space-y-3">
             <div role="radiogroup" aria-label="Loan kind" className="grid grid-cols-2 gap-2">
               {LOAN_KINDS.map((k) => (
-                <button
-                  key={k.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={loanKind === k.value}
-                  onClick={() => onLoanKindChange(k.value)}
-                  className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${loanKind === k.value ? 'border-primary bg-card ring-1 ring-primary' : 'bg-card/60 hover:bg-card'}`}
-                >
+                <button key={k.value} type="button" role="radio" aria-checked={loanKind === k.value} onClick={() => onLoanKindChange(k.value)}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${loanKind === k.value ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500' : 'bg-background hover:bg-accent'}`}>
                   <span className="block font-medium">{k.label}</span>
                   <span className="block text-xs text-muted-foreground">{k.hint}</span>
                 </button>
               ))}
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="counterparty">Person</Label>
-            <Input id="counterparty" name="counterparty" list="loan-people" required maxLength={80}
-              defaultValue={existing?.counterparty ?? undefined} placeholder="Who is the loan with?" autoComplete="off" />
-            <datalist id="loan-people">{people.map((p) => <option key={p} value={p} />)}</datalist>
-          </div>
-        </div>
-      )}
-
-      {(type === 'expense' || type === 'income') && (
-        <div className="space-y-2">
-          <Label>{type === 'expense' ? 'Paid from' : 'Received in'}</Label>
-          <div role="radiogroup" aria-label={type === 'expense' ? 'Paid from' : 'Received in'} className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:w-80">
-            {(['account', 'person'] as const).map((v) => (
-              <button key={v} type="button" role="radio" aria-checked={via === v} onClick={() => setVia(v)}
-                className={`rounded-md px-3 py-1 text-sm transition-colors ${via === v ? 'bg-card font-medium shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}>
-                {v === 'account' ? 'My account' : type === 'expense' ? 'Someone paid' : 'Someone received'}
-              </button>
-            ))}
-          </div>
-          {viaPerson && (
-            <div className="grid gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 sm:grid-cols-[1fr_auto]">
-              <div className="space-y-2">
-                <Label htmlFor="counterparty">{type === 'expense' ? 'Who paid for you?' : 'Who received it?'}</Label>
-                <Input id="counterparty" name="counterparty" list="loan-people" required maxLength={80}
-                  defaultValue={existing?.counterparty ?? undefined} placeholder="Name" autoComplete="off" />
-                <datalist id="loan-people">{people.map((p) => <option key={p} value={p} />)}</datalist>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="currency">Currency</Label>
-                <CurrencySelect id="currency" name="currency" defaultValue={existing?.currency ?? accounts[0]?.currency ?? 'USD'} className="sm:w-44" />
-              </div>
-              <p className="text-xs text-muted-foreground sm:col-span-2">
-                {type === 'expense' ? 'Counts as your spending and adds to what you owe them on the Loans page. No account balance changes.' : 'Reduces what you owe them on the Loans page. No account balance changes.'}
-              </p>
+            <div className="space-y-2">
+              <Label htmlFor="counterparty">Person</Label>
+              <Input id="counterparty" name="counterparty" list="loan-people" required maxLength={80}
+                defaultValue={existing?.counterparty ?? undefined} placeholder="Who is the loan with?" autoComplete="off" />
+              <datalist id="loan-people">{people.map((p) => <option key={p} value={p} />)}</datalist>
             </div>
-          )}
-        </div>
-      )}
-
-      {showFrom && (
-        <div className="space-y-2">
-          <Label htmlFor="fromAccountId">{isLoan ? 'From account (money leaves)' : 'From account'}</Label>
-          <Select name="fromAccountId" items={accountItems} value={fromAccountId || null} onValueChange={onFromAccountChange}>
-            <SelectTrigger className="w-full"><SelectValue placeholder="Select account" /></SelectTrigger>
-            <SelectContent alignItemWithTrigger={false} className="max-h-[min(18rem,var(--available-height))]">{pickable.map((a) => <SelectItem key={a.id} value={a.id}><IconLabel icon={a.icon} fallback="landmark">{a.name} ({a.currency})</IconLabel></SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {!isLoan && <div className="space-y-2">
-        <Label htmlFor="categoryId">Category</Label>
-        {/* `key={type}` remounts the Select when the type changes, so it drops a category id
-            that belongs to the previous type instead of keeping a stale selection. */}
-        <Select key={type} name="categoryId" items={categoryItems} defaultValue={categoryDefault}>
-          <SelectTrigger className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger>
-          <SelectContent alignItemWithTrigger={false} className="max-h-[min(18rem,var(--available-height))]">
-            {relevantCategories.map((c) => <SelectItem key={c.id} value={c.id}><IconLabel icon={c.icon}>{c.name}</IconLabel></SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>}
-
-      {showTo && (
-        <div className="space-y-2">
-          <Label htmlFor="toAccountId">{isLoan ? 'To account (money arrives)' : 'To account'}</Label>
-          <Select name="toAccountId" items={accountItems} value={toAccountId || null} onValueChange={onToAccountChange}>
-            <SelectTrigger className="w-full"><SelectValue placeholder="Select account" /></SelectTrigger>
-            <SelectContent alignItemWithTrigger={false} className="max-h-[min(18rem,var(--available-height))]">{pickable.map((a) => <SelectItem key={a.id} value={a.id}><IconLabel icon={a.icon} fallback="landmark">{a.name} ({a.currency})</IconLabel></SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <Label htmlFor="amount">
-          {showToAmount ? `Amount sent (${fromCurrency})` : currency ? `Amount (${currency})` : 'Amount'}
-        </Label>
-        <Input id="amount" name="amount" defaultValue={existing?.amount} required inputMode="decimal" />
-        {!currency && <p className="text-xs text-muted-foreground">The currency comes from the selected account.</p>}
-      </div>
-
-      {showToAmount && (
-        <div className="space-y-2">
-          <Label htmlFor="toAmount">Amount received ({toCurrency})</Label>
-          <Input id="toAmount" name="toAmount" defaultValue={existing?.toAmount ?? undefined} required inputMode="decimal" />
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <Label htmlFor="payDate">Date</Label>
-        <DatePicker id="payDate" name="payDate" defaultValue={existing?.payDate ?? todayIso()} />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="note">Note</Label>
-        <Input id="note" name="note" defaultValue={existing?.note ?? undefined} />
-      </div>
-
-      {!isLoan && (
-        <Label className="flex items-center gap-2">
-          <Switch checked={reimbursable} onCheckedChange={setReimbursable} />
-          Reimbursable
-        </Label>
-      )}
-
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      <div className="flex items-center gap-2">
-        <Button type="submit" disabled={pending}>{pending ? 'Saving…' : 'Save transaction'}</Button>
-        {existing && (
-          <Button type="button" variant="outline" disabled={pending} onClick={() => router.push(`/transactions/${existing.id}`)}>Cancel</Button>
+          </div>
         )}
-        {existing && (
-          <ConfirmButton
-            label="Delete"
-            description={`Delete "${existing.details}"? This cannot be undone.`}
-            confirmText={existing.details}
-            onConfirm={() => deleteTransaction(existing.id)}
-            redirectTo="/transactions"
+
+        {(type === 'expense' || type === 'income') && (
+          <Segmented
+            label={type === 'expense' ? 'Paid from' : 'Received in'}
+            value={via}
+            onChange={setVia}
+            options={[
+              { value: 'account', label: 'My account' },
+              { value: 'person', label: type === 'expense' ? 'Someone paid' : 'Someone received' },
+            ]}
           />
         )}
+
+        {viaPerson && (
+          <div key={`person-${resetKey}`} className="grid gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 sm:grid-cols-[1fr_auto]">
+            <div className="space-y-2">
+              <Label htmlFor="counterparty">{type === 'expense' ? 'Who paid for you?' : 'Who received it?'}</Label>
+              <Input id="counterparty" name="counterparty" list="loan-people" required maxLength={80}
+                defaultValue={existing?.counterparty ?? undefined} placeholder="Name" autoComplete="off" />
+              <datalist id="loan-people">{people.map((p) => <option key={p} value={p} />)}</datalist>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="currency">Currency</Label>
+              <CurrencySelect id="currency" name="currency" defaultValue={existing?.currency ?? accounts[0]?.currency ?? 'USD'} className="sm:w-44" />
+            </div>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              {type === 'expense' ? 'Counts as your spending and adds to what you owe them on the Loans page. No account balance changes.' : 'Reduces what you owe them on the Loans page. No account balance changes.'}
+            </p>
+          </div>
+        )}
+
+        {showFrom && (
+          <div className="space-y-1.5">
+            {(type === 'transfer' || isLoan) && <Label htmlFor="fromAccountId">{isLoan ? 'From account (money leaves)' : 'From'}</Label>}
+            <AccountPicker id="fromAccountId" name="fromAccountId" label={type === 'transfer' ? 'From account' : isLoan ? 'From account' : 'Paid from'}
+              value={fromAccountId} onChange={setFromAccountId} disabledId={type === 'transfer' ? toAccountId : undefined} {...pickerProps} />
+          </div>
+        )}
+
+        {type === 'transfer' && (
+          <div className="flex justify-center">
+            <Button type="button" variant="outline" size="sm" onClick={swapAccounts} disabled={!fromAccountId && !toAccountId} aria-label="Swap from and to accounts">
+              <ArrowUpDownIcon /> Swap
+            </Button>
+          </div>
+        )}
+
+        {showTo && (
+          <div className="space-y-1.5">
+            {(type === 'transfer' || isLoan) && <Label htmlFor="toAccountId">{isLoan ? 'To account (money arrives)' : 'To'}</Label>}
+            <AccountPicker id="toAccountId" name="toAccountId" label={type === 'transfer' ? 'To account' : isLoan ? 'To account' : 'Received in'}
+              value={toAccountId} onChange={setToAccountId} disabledId={type === 'transfer' ? fromAccountId : undefined} {...pickerProps} />
+          </div>
+        )}
+      </Section>
+
+      {!isLoan && (
+        <Section title="Category" aside={categoryId ? <button type="button" onClick={() => setCategoryId('')} className="text-xs text-muted-foreground hover:text-foreground">Clear</button> : undefined}>
+          <CategoryChips name="categoryId" categories={relevantCategories} value={categoryId} onChange={setCategoryId} />
+        </Section>
+      )}
+
+      <Section title="Date" aside={<span className="text-xs text-muted-foreground">{payDate ? formatDate(payDate) : ''}</span>}>
+        <div className="flex flex-wrap items-center gap-2">
+          {[{ iso: today, label: 'Today' }, { iso: yesterday, label: 'Yesterday' }].map((d) => (
+            <button key={d.label} type="button" onClick={() => pickDate(d.iso)} aria-pressed={payDate === d.iso}
+              className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${payDate === d.iso ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:bg-accent'}`}>
+              {d.label}
+            </button>
+          ))}
+          <div className="min-w-44 flex-1 sm:max-w-56">
+            <DatePicker key={dateKey} id="payDate" name="payDate" defaultValue={payDate} onChange={setPayDate} />
+          </div>
+        </div>
+      </Section>
+
+      {/* Optional extras, folded away unless used */}
+      <section className="rounded-xl border bg-card shadow-xs">
+        <button type="button" onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen} aria-controls="more-options"
+          className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-muted-foreground hover:text-foreground">
+          <ChevronRightIcon className={`size-4 transition-transform ${moreOpen ? 'rotate-90' : ''}`} />
+          More options
+          <span className="font-normal">· note, receipt link{isLoan ? '' : ', reimbursable'}</span>
+          {!moreOpen && reimbursable && <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">Reimbursable</span>}
+        </button>
+        {/* Kept mounted while closed so typed values are still submitted. */}
+        <div key={`more-${resetKey}`} id="more-options" hidden={!moreOpen} className="space-y-4 border-t px-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="note">Note</Label>
+            <Input id="note" name="note" defaultValue={existing?.note ?? undefined} autoComplete="off" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="link">Receipt link</Label>
+            <Input id="link" name="link" type="url" inputMode="url" placeholder="https://…" defaultValue={existing?.link ?? undefined} />
+          </div>
+          {!isLoan && (
+            <Label className="flex items-center gap-2 font-normal">
+              <Switch checked={reimbursable} onCheckedChange={setReimbursable} />
+              Reimbursable — track it on the Reimbursements page
+            </Label>
+          )}
+        </div>
+      </section>
+
+      {/* Save bar: stays in view at the bottom of the screen */}
+      <div className="sticky bottom-0 z-20 -mx-4 space-y-2 border-t bg-background/95 px-4 py-3 backdrop-blur md:mx-0 md:rounded-xl md:border md:shadow-sm">
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground" aria-live="polite">{summary}</p>
+          {existing && (
+            <>
+              <ConfirmButton
+                label="Delete"
+                description={`Delete "${existing.details}"? This cannot be undone.`}
+                confirmText={existing.details}
+                onConfirm={() => deleteTransaction(existing.id)}
+                redirectTo="/transactions"
+              />
+              <Button type="button" variant="outline" disabled={pending} onClick={() => router.push(`/transactions/${existing.id}`)}>Cancel</Button>
+            </>
+          )}
+          {!existing && (
+            <Button type="submit" name="intent" value="another" variant="outline" disabled={pending}>Save &amp; add another</Button>
+          )}
+          <Button type="submit" name="intent" value="save" disabled={pending}>{pending ? 'Saving…' : existing ? 'Save changes' : 'Save'}</Button>
+        </div>
       </div>
     </form>
   );

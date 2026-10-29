@@ -8,12 +8,13 @@ import { getCurrentUser } from '@/lib/session';
 import { getUserAccount } from '@/lib/authorization';
 import { calculateAccountBalance } from '@/lib/balances';
 import { ACCOUNT_COLOR_KEYS, FALLBACK_APPEARANCE } from '@/lib/account-appearance';
-import { accountTypes } from '@/db/schema';
+import { accountGroups, accountTypes } from '@/db/schema';
 import { iconName } from '@/lib/icon-schema';
 
 const accountInput = z.object({
   name: z.string().min(1),
   accountTypeId: z.string().min(1).nullable().optional(),
+  groupId: z.string().min(1).nullable().optional(),
   currency: z.string().min(3).max(3),
   startingBalance: z.string().regex(/^-?\d+(\.\d{1,2})?$/),
   note: z.string().optional(),
@@ -29,10 +30,18 @@ async function ownedAccountType(userId: string, accountTypeId: string | null | u
   return type;
 }
 
+async function assertOwnedGroup(userId: string, groupId: string | null | undefined) {
+  if (!groupId) return;
+  const [group] = await db.select({ id: accountGroups.id }).from(accountGroups)
+    .where(and(eq(accountGroups.id, groupId), eq(accountGroups.userId, userId))).limit(1);
+  if (!group) throw new Error('FORBIDDEN');
+}
+
 export async function createAccount(input: z.infer<typeof accountInput>) {
   const user = await getCurrentUser();
   const data = accountInput.parse(input);
   const type = await ownedAccountType(user.id, data.accountTypeId);
+  await assertOwnedGroup(user.id, data.groupId);
   // A new account takes its type's icon (and the default colour) unless the user chose their own.
   const defaults = { icon: type?.icon ?? FALLBACK_APPEARANCE.icon, color: FALLBACK_APPEARANCE.color };
   const [account] = await db.insert(accounts).values({
@@ -47,6 +56,7 @@ export async function updateAccount(id: string, input: Partial<z.infer<typeof ac
   if (!existing) throw new Error('NOT_FOUND');
   const data = accountInput.partial().parse(input);
   if (data.accountTypeId) await ownedAccountType(user.id, data.accountTypeId);
+  await assertOwnedGroup(user.id, data.groupId);
   const [updated] = await db.update(accounts).set({ ...data, updatedAt: new Date() })
     .where(and(eq(accounts.id, id), eq(accounts.userId, user.id))).returning();
   return updated;
@@ -58,6 +68,17 @@ export async function setAccountArchived(id: string, archived: boolean) {
   if (!existing) throw new Error('NOT_FOUND');
   const [updated] = await db.update(accounts).set({ archived, updatedAt: new Date() })
     .where(and(eq(accounts.id, id), eq(accounts.userId, user.id))).returning();
+  return updated;
+}
+
+export async function setAccountFavorite(id: string, favorite: boolean) {
+  const user = await getCurrentUser();
+  const existing = await getUserAccount(id, user.id);
+  if (!existing) throw new Error('NOT_FOUND');
+  const [updated] = await db.update(accounts).set({ favorite: z.boolean().parse(favorite), updatedAt: new Date() })
+    .where(and(eq(accounts.id, id), eq(accounts.userId, user.id))).returning();
+  revalidatePath('/accounts');
+  revalidatePath(`/accounts/${id}`);
   return updated;
 }
 

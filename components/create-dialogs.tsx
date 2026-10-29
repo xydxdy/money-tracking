@@ -4,12 +4,21 @@ import { AccountForm } from '@/components/account-form';
 import { CategoryForm } from '@/components/category-form';
 import { BudgetForm } from '@/components/budget-form';
 import { AccountTypeForm } from '@/components/account-type-form';
-import type { Account, AccountType, Category } from '@/db/schema';
+import { AccountGroupForm } from '@/components/account-group-form';
+import type { Account, AccountGroup, AccountType, Category } from '@/db/schema';
 
-export function CreateAccountDialog({ types }: { types: AccountType[] }) {
+export function CreateAccountDialog({ types, groups }: { types: AccountType[]; groups: AccountGroup[] }) {
   return (
     <EditDialog title="New account" triggerLabel="New account" create>
-      {(close) => <AccountForm types={types} onSaved={close} />}
+      {(close) => <AccountForm types={types} groups={groups} onSaved={close} />}
+    </EditDialog>
+  );
+}
+
+export function CreateAccountGroupDialog() {
+  return (
+    <EditDialog title="New group" triggerLabel="New group">
+      {(close) => <AccountGroupForm onSaved={close} />}
     </EditDialog>
   );
 }
@@ -33,10 +42,10 @@ export function CreateBudgetDialog({ month, monthLabel, categories, currencies, 
   );
 }
 
-export function EditAccountDialog({ account, types }: { account: Account; types: AccountType[] }) {
+export function EditAccountDialog({ account, types, groups }: { account: Account; types: AccountType[]; groups: AccountGroup[] }) {
   return (
     <EditDialog title={`Edit ${account.name}`}>
-      {(close) => <AccountForm existing={account} types={types} onSaved={close} />}
+      {(close) => <AccountForm existing={account} types={types} groups={groups} onSaved={close} />}
     </EditDialog>
   );
 }

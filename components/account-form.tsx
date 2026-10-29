@@ -13,7 +13,7 @@ import { IconLabel } from '@/components/app-icon';
 import { AccountAvatar } from '@/components/account-avatar';
 import { ACCOUNT_ICONS, FALLBACK_APPEARANCE, type AccountColor } from '@/lib/account-appearance';
 import { currencySymbol } from '@/lib/currencies';
-import type { Account, AccountType } from '@/db/schema';
+import type { Account, AccountGroup, AccountType } from '@/db/schema';
 
 const ICON_GROUPS = [{ label: 'Icons', icons: ACCOUNT_ICONS }];
 
@@ -21,8 +21,12 @@ function appearanceOf(type: AccountType | undefined) {
   return { icon: type?.icon ?? FALLBACK_APPEARANCE.icon, color: FALLBACK_APPEARANCE.color };
 }
 
-export function AccountForm({ existing, types, onSaved }: { existing?: Account; types: AccountType[]; onSaved?: () => void }) {
+export function AccountForm({ existing, types, groups = [], defaultGroupId, onSaved }: {
+  existing?: Account; types: AccountType[]; groups?: AccountGroup[]; defaultGroupId?: string; onSaved?: () => void;
+}) {
   const router = useRouter();
+  const [groupId, setGroupId] = useState<string>(existing ? (existing.groupId ?? '') : (defaultGroupId ?? ''));
+  const groupItems = { '': 'No group', ...Object.fromEntries(groups.map((g) => [g.id, <IconLabel key={g.id} icon={g.icon} fallback="landmark">{g.name}</IconLabel>])) };
   const [typeId, setTypeId] = useState<string>(existing ? (existing.accountTypeId ?? '') : (types[0]?.id ?? ''));
   const typeOf = (id: string) => types.find((t) => t.id === id);
   const typeItems = { '': 'No type', ...Object.fromEntries(types.map((t) => [t.id, <IconLabel key={t.id} icon={t.icon} fallback="landmark">{t.name}</IconLabel>])) };
@@ -55,6 +59,7 @@ export function AccountForm({ existing, types, onSaved }: { existing?: Account; 
     const common = {
       name: String(formData.get('name')),
       accountTypeId: typeId || null,
+      groupId: groupId || null,
       startingBalance: String(formData.get('startingBalance') || '0'),
       // Always sent, so blanking the note on edit clears it.
       note: String(formData.get('note') ?? ''),
@@ -79,13 +84,26 @@ export function AccountForm({ existing, types, onSaved }: { existing?: Account; 
         <AccountAvatar icon={icon} color={color} size="lg" />
         <div className="min-w-0">
           <p className="truncate font-medium">{name || 'New account'}</p>
-          <p className="text-sm text-muted-foreground">{typeOf(typeId)?.name ?? 'No type'}{existing ? ` · ${existing.currency}` : ''}</p>
+          <p className="truncate text-sm text-muted-foreground">
+            {[groups.find((g) => g.id === groupId)?.name, typeOf(typeId)?.name ?? 'No type', existing?.currency].filter(Boolean).join(' · ')}
+          </p>
         </div>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor={`${idPrefix}-name`}>Name</Label>
         <Input id={`${idPrefix}-name`} name="name" value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div className="space-y-2">
+        <Label>Group</Label>
+        <Select value={groupId} onValueChange={(v) => setGroupId(v ?? '')} items={groupItems}>
+          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {groups.map((g) => <SelectItem key={g.id} value={g.id}><IconLabel icon={g.icon} fallback="landmark">{g.name}</IconLabel></SelectItem>)}
+            <SelectItem value="">No group</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">e.g. a bank. A group can hold accounts in different currencies.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">

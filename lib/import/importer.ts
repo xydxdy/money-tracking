@@ -6,7 +6,7 @@ import { uuidv7 } from '@/lib/uuid';
 import { toIconName } from '@/lib/icons';
 import { FALLBACK_APPEARANCE } from '@/lib/account-appearance';
 import { LEGACY_ACCOUNT_TYPES } from '@/lib/defaults';
-import { accountTypes } from '@/db/schema';
+import { accountGroups, accountTypes } from '@/db/schema';
 
 export type PreviewResult = {
   counts: { accounts: number; categories: number; transactions: number; budgets: number };
@@ -91,9 +91,22 @@ export function previewImport(json: unknown): PreviewResult {
     return dups.map((id) => `duplicate ${name} id: ${id}`);
   };
 
-  const warnings = findDanglingAccountRefs(backup).map((id) => `dangling-account: transaction references missing account ${id}; a recovered placeholder account will be created`);
+  const groupIds = new Set(backup.groups.map((g) => g.id));
+  const warnings = [
+    ...findDanglingAccountRefs(backup).map((id) => `dangling-account: transaction references missing account ${id}; a recovered placeholder account will be created`),
+    ...backup.accounts.filter((a) => a.groupId && !groupIds.has(a.groupId))
+      .map((a) => `missing-group: account ${a.id} references missing group ${a.groupId}; it will be ungrouped`),
+  ];
+  const groupNames = new Set<string>();
+  const dupGroupNames: string[] = [];
+  for (const g of backup.groups) {
+    if (groupNames.has(g.name.toLowerCase())) dupGroupNames.push(`duplicate group name: ${g.name}`);
+    groupNames.add(g.name.toLowerCase());
+  }
   const errors = [
     ...dupErrors('account', backup.accounts),
+    ...dupErrors('group', backup.groups),
+    ...dupGroupNames,
     ...dupErrors('category', backup.categories),
     ...dupErrors('transaction', backup.transactions),
     ...dupErrors('budget', backup.budgets),
@@ -134,6 +147,7 @@ export async function commitImport(json: unknown, userId: string): Promise<Commi
   const newId = () => uuidv7();
   for (const a of backup.accounts) accountIdMap.set(a.id, newId());
   for (const c of backup.categories) categoryIdMap.set(c.id, newId());
+  const groupIdMap = new Map(backup.groups.map((g) => [g.id, newId()]));
   const danglingIds = findDanglingAccountRefs(backup);
   for (const id of danglingIds) accountIdMap.set(id, newId());
 
@@ -148,6 +162,14 @@ export async function commitImport(json: unknown, userId: string): Promise<Commi
     await tx.delete(budgets).where(eq(budgets.userId, userId));
     await tx.delete(categories).where(eq(categories.userId, userId));
     await tx.delete(accounts).where(eq(accounts.userId, userId));
+    await tx.delete(accountGroups).where(eq(accountGroups.userId, userId));
+
+    if (backup.groups.length > 0) {
+      await tx.insert(accountGroups).values(backup.groups.map((g) => ({
+        id: groupIdMap.get(g.id)!, userId, name: g.name, color: g.color ?? 'slate',
+        icon: toIconName(g.icon) ?? FALLBACK_APPEARANCE.icon, note: g.note, position: g.position,
+      })));
+    }
 
     // Account types are the user's own list and are kept across imports. Each type in the file
     // is matched to an existing type by name (ignoring case) — built-in keys like "credit" are
@@ -173,9 +195,10 @@ export async function commitImport(json: unknown, userId: string): Promise<Commi
         const type = a.type ? await resolveType(a.type) : null;
         rows.push({
           id: accountIdMap.get(a.id)!, userId, name: a.name, accountTypeId: type?.id ?? null, currency: a.currency,
-          startingBalance: a.startingBalance.toFixed(2), note: a.note, archived: a.archived,
+          startingBalance: a.startingBalance.toFixed(2), note: a.note, archived: a.archived, favorite: a.favorite,
           color: a.color ?? FALLBACK_APPEARANCE.color,
           icon: toIconName(a.icon) ?? toIconName(type?.icon) ?? FALLBACK_APPEARANCE.icon,
+          groupId: (a.groupId && groupIdMap.get(a.groupId)) || null, position: a.position,
         });
       }
       await tx.insert(accounts).values(rows);

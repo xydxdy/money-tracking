@@ -5,9 +5,11 @@ import { and, or, eq, desc } from 'drizzle-orm';
 import { getAccountWithBalance, setAccountArchived, listAccounts } from '@/app/actions/accounts';
 import { listCategories } from '@/app/actions/categories';
 import { listAccountTypes } from '@/app/actions/account-types';
+import { listAccountGroups } from '@/app/actions/account-groups';
 import { ConfirmButton } from '@/components/confirm-button';
 import { EditAccountDialog } from '@/components/create-dialogs';
 import { AccountAvatar } from '@/components/account-avatar';
+import { FavoriteToggle } from '@/components/favorite-toggle';
 import { TransactionRow } from '@/components/transaction-row';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,15 +30,17 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
     notFound();
   }
 
-  const [history, accounts, categories, types] = await Promise.all([
+  const [history, accounts, categories, types, groups] = await Promise.all([
     db.select().from(transactions)
       .where(and(eq(transactions.userId, user.id), or(eq(transactions.fromAccountId, id), eq(transactions.toAccountId, id))))
       .orderBy(desc(transactions.payDate), desc(transactions.createdAt), desc(transactions.id)),
     listAccounts(),
     listCategories(),
     listAccountTypes(),
+    listAccountGroups(),
   ]);
   const typeName = types.find((t) => t.id === account.accountTypeId)?.name ?? 'No type';
+  const groupName = groups.find((g) => g.id === account.groupId)?.name;
 
   return (
     <>
@@ -49,16 +53,17 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-semibold tracking-tight">{account.name}</h1>
+                {!account.archived && <FavoriteToggle accountId={account.id} accountName={account.name} favorite={account.favorite} size="md" />}
                 {account.archived && <Badge variant="secondary">Archived</Badge>}
               </div>
-              <p className="text-sm text-muted-foreground">{typeName} · {account.currency}{account.note ? ` · ${account.note}` : ''}</p>
+              <p className="text-sm text-muted-foreground">{[groupName, typeName, account.currency, account.note].filter(Boolean).join(' · ')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {!account.archived && (
               <Button render={<Link href={`/transactions/new?account=${id}`} />} nativeButton={false}><PlusIcon /> Add transaction</Button>
             )}
-            <EditAccountDialog account={account} types={types} />
+            <EditAccountDialog account={account} types={types} groups={groups} />
             <ConfirmButton
               variant="outline"
               label={account.archived ? 'Unarchive' : 'Archive'}

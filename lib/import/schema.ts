@@ -12,9 +12,22 @@ export const backupAccountSchema = z.object({
   note: z.string().optional(),
   // Some older backups omit it for accounts that were never archived.
   archived: z.boolean().default(false),
+  favorite: z.boolean().default(false),
   color: z.enum(ACCOUNT_COLOR_KEYS).optional(),
   // An icon name, or an emoji in older backups (translated on import; unknown ones are dropped).
   icon: z.string().trim().max(40).optional(),
+  // The id of one of the file's groups; older backups have no groups.
+  groupId: z.string().optional(),
+  position: z.number().int().optional(),
+});
+
+export const backupGroupSchema = z.object({
+  id: z.string(),
+  name: z.string().trim().min(1).max(60),
+  color: z.enum(ACCOUNT_COLOR_KEYS).optional(),
+  icon: z.string().trim().max(40).optional(),
+  note: z.string().optional(),
+  position: z.number().int().optional(),
 });
 
 export const backupCategorySchema = z.object({
@@ -90,6 +103,7 @@ function upgradeV1(input: unknown): unknown {
 export const backupSchema = z.preprocess(upgradeV1, z.object({
   version: z.number(),
   accounts: z.array(backupAccountSchema),
+  groups: z.array(backupGroupSchema).default([]),
   categories: z.array(backupCategorySchema),
   transactions: z.array(backupTransactionSchema),
   budgets: z.array(backupBudgetSchema),
