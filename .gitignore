@@ -31,3 +31,8 @@ npm-debug.log*
 /finance-backup-*.json
 .env*
 !.env.example
+
+# Local AI agent tooling (skills, settings)
+/.agents/
+/.claude/
+/skills-lock.json

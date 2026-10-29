@@ -18,7 +18,7 @@ import type { Account, AccountGroup, Category, Transaction } from '@/db/schema';
 import { sortByGroup } from '@/lib/account-groups';
 import { currencySymbol } from '@/lib/currencies';
 import { formatDate } from '@/lib/dates';
-import { formatMoney, toCents } from '@/lib/money';
+import { formatMoney, sanitizeAmount, toCents } from '@/lib/money';
 
 const TYPES = ['expense', 'income', 'transfer', 'loan'] as const;
 type TxType = (typeof TYPES)[number];
@@ -299,7 +299,7 @@ export function TransactionForm({
               id="amount"
               name="amount"
               value={amount}
-              onChange={(e) => setAmount(e.target.value.replace(/,/g, ''))}
+              onChange={(e) => setAmount(sanitizeAmount(e.target.value))}
               required
               inputMode="decimal"
               autoComplete="off"
@@ -319,7 +319,8 @@ export function TransactionForm({
             <Label htmlFor="toAmount" className="justify-center text-xs font-normal text-muted-foreground">Amount received ({toCurrency})</Label>
             <div className="flex items-baseline justify-center gap-1.5">
               <span className="text-lg text-muted-foreground">{currencySymbol(toCurrency!)}</span>
-              <input id="toAmount" name="toAmount" defaultValue={existing?.toAmount ?? undefined} required inputMode="decimal" autoComplete="off" placeholder="0.00"
+              <input id="toAmount" name="toAmount" defaultValue={existing?.toAmount ?? undefined} required inputMode="decimal"
+                onInput={(e) => { e.currentTarget.value = sanitizeAmount(e.currentTarget.value); }} autoComplete="off" placeholder="0.00"
                 className="field-sizing-content min-w-[4ch] bg-transparent text-center text-2xl font-semibold tabular-nums outline-none placeholder:text-muted-foreground/40" />
             </div>
           </div>

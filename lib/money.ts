@@ -47,3 +47,12 @@ export function formatMoney(cents: number, currency: string): string {
   }
   return out;
 }
+
+/**
+ * Cleans what's typed into an amount field: digits and one decimal point with at most two digits
+ * after it. Everything else is dropped, including thousands separators ("1,200" → "1200").
+ */
+export function sanitizeAmount(raw: string): string {
+  const [whole, ...rest] = raw.replace(/[^\d.]/g, '').split('.');
+  return rest.length === 0 ? whole : `${whole}.${rest.join('').slice(0, 2)}`;
+}
